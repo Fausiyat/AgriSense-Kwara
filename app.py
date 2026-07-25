@@ -201,6 +201,16 @@ with tab1:
         st.info(f"**Growth Stage:** {irrigation_res['stage']} | **Irrigation Status:** {irrigation_res['action']}\n\n{irrigation_res['advisory']}")
 
         st.markdown("---")
+
+        # --- 3. CHARTING TREND ---
+        st.write(f"### 📊 7-Day Rainfall Trend for {selected_lga}")
+        df_trend = pd.DataFrame({
+            "Date": live_data["dates"],
+            "Rainfall (mm)": live_data["rain_history"]
+        })
+        st.bar_chart(df_trend.set_index("Date"))
+
+        st.markdown("---")
         st.markdown("### 📱 Test Single SMS Broadcast")
 
         single_msg = (
@@ -214,7 +224,7 @@ with tab1:
         test_phone = st.text_input("Enter Phone Number:", "08143086509")
         if st.button("🚀 Send Single Test SMS"):
             phone_clean = test_phone.replace("+", "").strip()
-            
+
             # --- UPDATED PHONE NUMBER FORMATTING LOGIC FOR SINGLE SMS ---
             if phone_clean.startswith("0"):
                 formatted_phone = "234" + phone_clean[1:]
