@@ -188,13 +188,13 @@ with tab1:
 
         if prob_safe >= 80:
             st.success(f"🟢 **SAFE TO PLANT ({prob_safe:.1f}% Confidence)**")
-            planting_advisory = f"SAFE TO PLANT ({prob_safe:.1f}% Confidence)\n,Optimal moisture and 3-day forecast conditions predicted for maize seed germination."
+            planting_advisory = f"SAFE TO PLANT ({prob_safe:.1f}% Confidence),\nOptimal moisture and 3-day forecast conditions predicted for maize seed germination."
         elif 50 <= prob_safe < 80:
             st.warning(f"🟡 **MODERATE PLANTING RISK ({prob_safe:.1f}% Confidence)**")
-            planting_advisory = f"MODERATE PLANTING RISK ({prob_safe:.1f}% Confidence\n, Planting is possible, but ensure light pre-irrigation if dry conditions persist."
+            planting_advisory = f"MODERATE PLANTING RISK ({prob_safe:.1f}% Confidence,\nPlanting is possible, but ensure light pre-irrigation if dry conditions persist."
         else:
             st.error(f"🔴 **DO NOT PLANT ({prob_safe:.1f}% Confidence)**")
-            planting_advisory = f"DO NOT PLANT ({prob_safe:.1f}% Confidence\n, High drought or off-season risk detected. Hold off planting to avoid seed loss."
+            planting_advisory = f"DO NOT PLANT ({prob_safe:.1f}% Confidence,\nHigh drought or off-season risk detected. Hold off planting to avoid seed loss."
 
         irrigation_res = calculate_irrigation_advisory(dap, live_data['consecutive_dry_days'], live_data['forecast_3day_rain'], soil_type)
 
