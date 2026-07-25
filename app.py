@@ -7,11 +7,14 @@ import json
 import os
 import datetime
 
-# --- TERMII API KEY CONFIGURATION ---
+# --- EBULKSMS API CONFIGURATION ---
 try:
-    TERMII_API_KEY = st.secrets["TERMII_API_KEY"]
+    EBULKSMS_USERNAME = st.secrets["EBULKSMS_USERNAME"]
+    EBULKSMS_API_KEY = st.secrets["EBULKSMS_API_KEY"]
 except Exception:
-    TERMII_API_KEY = "tlv_Hn4rlapWW6cTRqdHB5sWSKiwSNepn-VSBab_mQ08blk"
+    # Fallback for local testing:
+    EBULKSMS_USERNAME = "fausiyatmahmood@gmail.com"  # Replace with your Ebulksms email
+    EBULKSMS_API_KEY = "b4619b7c11b37261ed1858cccbf223362b8c0a9a20fa1e36425b3fc759764474"  # Replace with your Ebulksms API key
 
 # Page Configuration
 st.set_page_config(
@@ -49,7 +52,7 @@ def calculate_irrigation_advisory(dap, consecutive_dry_days, forecast_3day_rain,
     soil moisture retention, and short-term rainfall forecasts.
     """
     dry_limit_factor = 0.6 if soil_type.lower() == "sandy" else 1.0
-    
+
     if 0 <= dap <= 15:
         stage = "Establishment (Days 0-15)"
         max_dry_allowed = max(1, int(2 * dry_limit_factor))
@@ -258,7 +261,7 @@ if live_data and model_loaded:
     })
     st.bar_chart(df_trend.set_index("Date"))
 
-    # --- 4. TERMII SMS BROADCAST BLOCK ---
+    # --- 4. EBULKSMS BROADCAST BLOCK ---
     st.markdown("---")
     st.write("### 📲 Dispatch Real-Time Alert to Registered Farmers")
 
@@ -273,27 +276,51 @@ if live_data and model_loaded:
 
     farmer_phone = st.text_input("Test Farmer Phone Number (International format):", "2348143086509")
 
-    if st.button("🚀 Send SMS Alert via Termii"):
+    if st.button("🚀 Send SMS Alert via Ebulksms"):
+        # Format phone number for Ebulksms (removes '+' if present)
+        formatted_phone = farmer_phone.replace("+", "").strip()
+
+        # Ebulksms JSON Payload Structure
         payload = {
-            "to": farmer_phone,
-            "from": "N-Alert",
-            "sms": sms_message,
-            "type": "plain",
-            "channel": "generic",
-            "api_key": TERMII_API_KEY
+            "SMS": {
+                "auth": {
+                    "username": EBULKSMS_USERNAME,
+                    "apikey": EBULKSMS_API_KEY
+                },
+                "message": {
+                    "sender": "AgriSense", # Max 11 characters
+                    "messagetext": sms_message,
+                    "flash": "0"
+                },
+                "recipients": {
+                    "gsm": [
+                        {
+                            "msidn": formatted_phone,
+                            "msgid": f"agri_{selected_lga}_{dap}"
+                        }
+                    ]
+                }
+            }
         }
+
         headers = {'Content-Type': 'application/json'}
 
         try:
-            response = requests.post("https://api.ng.termii.com/api/sms/send", json=payload, headers=headers)
+            # Send POST request to Ebulksms JSON Endpoint
+            url = "https://api.ebulksms.com/sendsms.json"
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
             res_data = response.json()
 
-            if response.status_code == 200 and res_data.get("message") == "Successfully Sent":
+            # Parse Ebulksms Response
+            status = res_data.get("response", {}).get("status", "")
+
+            if status == "SUCCESS":
                 st.success(f"✅ Advisory successfully sent to {farmer_phone} in {selected_lga}!")
             else:
-                st.error(f"Failed to send SMS. Response: {res_data}")
+                st.error(f"❌ Ebulksms Error ({status}): Check your balance or API details. Full response: {res_data}")
+
         except Exception as e:
-            st.error(f"Error connecting to Termii: {e}")
+            st.error(f"Error connecting to Ebulksms API: {e}")
 
 else:
     st.error("Could not load real-time weather data or ML model. Ensure 'agrisense_kwara_model.pkl' is uploaded.")
