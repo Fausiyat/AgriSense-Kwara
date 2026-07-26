@@ -1,32 +1,36 @@
-
-import streamlit as st
-import pandas as pd
-import numpy as np
-import joblib
-import requests
+# 1. IMPORTS
+import os
 import datetime
+import requests
+import joblib
+import numpy as np
+import pandas as pd
+import streamlit as st
 
-# --- EBULKSMS API CONFIGURATION ---
-try:
-    EBULKSMS_USERNAME = st.secrets["EBULKSMS_USERNAME"]
-    EBULKSMS_API_KEY = st.secrets["EBULKSMS_API_KEY"]
-except Exception:
-    # Fallback for local testing:
-    EBULKSMS_USERNAME = "fausiyatmahmood@gmail.com"
-    EBULKSMS_API_KEY = "b4619b7c11b37261ed1858cccbf223362b8c0a9a20fa1e36425b3fc759764474"
+# 2. PATH SETUP
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Page Configuration
+# 3. PAGE CONFIGURATION
 st.set_page_config(
     page_title="AgriSense Kwara - Climate & Advisory Broadcast System",
     page_icon="🌾",
     layout="wide"
 )
 
+# 4. EBULKSMS API CONFIGURATION
+try:
+    EBULKSMS_USERNAME = st.secrets["EBULKSMS_USERNAME"]
+    EBULKSMS_API_KEY = st.secrets["EBULKSMS_API_KEY"]
+except Exception:
+    # Fallback for local testing
+    EBULKSMS_USERNAME = "fausiyatmahmood@gmail.com"
+    EBULKSMS_API_KEY = "b4619b7c11b37261ed1858cccbf223362b8c0a9a20fa1e36425b3fc759764474"
+
 st.title("🌾 AgriSense Kwara (v2 Engine)")
 st.subheader("Google Earth Engine & Open-Meteo Dynamic Advisory & SMS Dispatch System")
 st.markdown("---")
 
-# 1. Geographic Coordinates for Kwara State LGAs [Latitude, Longitude]
+# Geographic Coordinates for Kwara State LGAs [Latitude, Longitude]
 LGA_COORDINATES = {
     "Ilorin_West": {"lat": 8.4900, "lon": 4.5421},
     "Ilorin_East": {"lat": 8.5333, "lon": 4.6333},
@@ -36,7 +40,7 @@ LGA_COORDINATES = {
     "Ifelodun": {"lat": 8.3167, "lon": 4.7167}
 }
 
-# Helper: Phone Number Standardinement (234 Format)
+# Helper: Phone Number Standardization (234 Format)
 def format_nigerian_phone(raw_phone):
     phone_clean = str(raw_phone).replace("+", "").strip()
     if phone_clean.startswith("0"):
@@ -118,8 +122,10 @@ def fetch_live_weather(lat, lon):
 
             dry_days = 0
             for r in reversed(daily['precipitation_sum'][:today_index]):
-                if r < 1.0: dry_days += 1
-                else: break
+                if r < 1.0: 
+                    dry_days += 1
+                else: 
+                    break
 
             return {
                 "today_rain": today_rain,
@@ -137,19 +143,20 @@ def fetch_live_weather(lat, lon):
 # Load Upgraded Model v2
 @st.cache_resource
 def load_agrisense_model():
-    # Load Model v2 if available, else fall back to v1
     for model_file in ["agrisense_kwara_model_v2.pkl", "agrisense_kwara_model.pkl"]:
-        try:
-            m = joblib.load(model_file)
-            return m, model_file
-        except Exception:
-            continue
+        model_path = os.path.join(BASE_DIR, model_file)
+        if os.path.exists(model_path):
+            try:
+                m = joblib.load(model_path)
+                return m, model_file
+            except Exception:
+                continue
     return None, None
 
 model, model_file_name = load_agrisense_model()
 
 if model is None:
-    st.error("⚠️ Model file not found. Ensure 'agrisense_kwara_model_v2.pkl' is uploaded to your app root folder.")
+    st.error("⚠️ Model file not found. Ensure 'agrisense_kwara_model_v2.pkl' is uploaded in the same folder as app.py.")
 
 # UI Navigation Tabs
 tab1, tab2 = st.tabs(["📊 Single Farm Interactive Dashboard", "🚀 Multi-Farmer Batch SMS Dispatcher"])
@@ -213,7 +220,7 @@ with tab1:
 
         st.markdown("---")
 
-        # --- 3. CHARTING TREND ---
+        # 3. CHARTING TREND
         st.write(f"### 📊 7-Day Rainfall Trend for {selected_lga}")
         df_trend = pd.DataFrame({
             "Date": live_data["dates"],
@@ -234,16 +241,8 @@ with tab1:
 
         test_phone = st.text_input("Enter Phone Number:", "08143086509")
         if st.button("🚀 Send Single Test SMS"):
-            phone_clean = test_phone.replace("+", "").strip()
-
             # --- UPDATED PHONE NUMBER FORMATTING LOGIC FOR SINGLE SMS ---
-            if phone_clean.startswith("0"):
-                formatted_phone = "234" + phone_clean[1:]
-            elif phone_clean.startswith("234"):
-                formatted_phone = phone_clean
-            else:
-                formatted_phone = "234" + phone_clean
-            # --- END UPDATED LOGIC ---
+            formatted_phone = format_nigerian_phone(test_phone)
 
             payload = {
                 "SMS": {
@@ -300,16 +299,10 @@ with tab2:
                 # Send personalized SMS per farmer
                 for _, row in group.iterrows():
                     farmer_name = str(row.get('Name', 'Farmer')).strip()
-                    raw_phone = str(row.get('Phone', '')).replace("+", "").strip()
+                    raw_phone = str(row.get('Phone', '')).strip()
                     soil = str(row.get('Soil_Type', 'Loam/Clay')).strip()
 
-                    # Phone number formatting pattern for batch dispatch
-                    if raw_phone.startswith("0"):
-                        formatted_phone = "234" + raw_phone[1:]
-                    elif raw_phone.startswith("234"):
-                        formatted_phone = raw_phone
-                    else:
-                        formatted_phone = "234" + raw_phone
+                    formatted_phone = format_nigerian_phone(raw_phone)
 
                     try:
                         p_date = pd.to_datetime(row['Planting_Date']).date()
