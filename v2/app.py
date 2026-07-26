@@ -143,20 +143,32 @@ def fetch_live_weather(lat, lon):
 # Load Upgraded Model v2
 @st.cache_resource
 def load_agrisense_model():
+    # Force absolute directory discovery relative to this app.py file
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
     for model_file in ["agrisense_kwara_model_v2.pkl", "agrisense_kwara_model.pkl"]:
-        model_path = os.path.join(BASE_DIR, model_file)
+        model_path = os.path.join(current_dir, model_file)
+        
+        # Debug helper: verify file exists on server filesystem
         if os.path.exists(model_path):
             try:
                 m = joblib.load(model_path)
                 return m, model_file
-            except Exception:
+            except Exception as err:
+                st.error(f"Failed to unpickle {model_file} at {model_path}: {err}")
                 continue
+
     return None, None
 
 model, model_file_name = load_agrisense_model()
 
 if model is None:
-    st.error("⚠️ Model file not found. Ensure 'agrisense_kwara_model_v2.pkl' is uploaded in the same folder as app.py.")
+    # Print the exact path where app.py tried looking to confirm folder context
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    st.error(
+        f"⚠️ Model file not found in directory: `{script_dir}`. "
+        "Ensure 'agrisense_kwara_model_v2.pkl' is uploaded in the same folder as app.py."
+    )
 
 # UI Navigation Tabs
 tab1, tab2 = st.tabs(["📊 Single Farm Interactive Dashboard", "🚀 Multi-Farmer Batch SMS Dispatcher"])
