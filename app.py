@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -34,6 +35,16 @@ LGA_COORDINATES = {
     "Kaiama": {"lat": 9.6053, "lon": 3.9410},
     "Ifelodun": {"lat": 8.3167, "lon": 4.7167}
 }
+
+# Helper: Phone Number Standardinement (234 Format)
+def format_nigerian_phone(raw_phone):
+    phone_clean = str(raw_phone).replace("+", "").strip()
+    if phone_clean.startswith("0"):
+        return "234" + phone_clean[1:]
+    elif phone_clean.startswith("234"):
+        return phone_clean
+    else:
+        return "234" + phone_clean
 
 # Helper: Growing Degree Days (GDD)
 def calculate_gdd(temp):
@@ -188,13 +199,13 @@ with tab1:
 
         if prob_safe >= 80:
             st.success(f"🟢 **SAFE TO PLANT ({prob_safe:.1f}% Confidence)**")
-            planting_advisory = f"SAFE TO PLANT ({prob_safe:.1f}% Confidence),\nOptimal moisture and 3-day forecast conditions predicted for maize seed germination."
+            planting_advisory = "Optimal moisture and 3-day forecast conditions predicted for maize seed germination."
         elif 50 <= prob_safe < 80:
             st.warning(f"🟡 **MODERATE PLANTING RISK ({prob_safe:.1f}% Confidence)**")
-            planting_advisory = f"MODERATE PLANTING RISK ({prob_safe:.1f}% Confidence,\nPlanting is possible, but ensure light pre-irrigation if dry conditions persist."
+            planting_advisory = "Planting is possible, but ensure light pre-irrigation if dry conditions persist."
         else:
             st.error(f"🔴 **DO NOT PLANT ({prob_safe:.1f}% Confidence)**")
-            planting_advisory = f"DO NOT PLANT ({prob_safe:.1f}% Confidence,\nHigh drought or off-season risk detected. Hold off planting to avoid seed loss."
+            planting_advisory = "High drought or off-season risk detected. Hold off planting to avoid seed loss."
 
         irrigation_res = calculate_irrigation_advisory(dap, live_data['consecutive_dry_days'], live_data['forecast_3day_rain'], soil_type)
 
@@ -224,15 +235,21 @@ with tab1:
         test_phone = st.text_input("Enter Phone Number:", "08143086509")
         if st.button("🚀 Send Single Test SMS"):
             phone_clean = test_phone.replace("+", "").strip()
+
+            # --- UPDATED PHONE NUMBER FORMATTING LOGIC FOR SINGLE SMS ---
             if phone_clean.startswith("0"):
-                phone_clean = "234" + phone_clean[1:]
+                formatted_phone = "234" + phone_clean[1:]
+            elif phone_clean.startswith("234"):
+                formatted_phone = phone_clean
+            else:
+                formatted_phone = "234" + phone_clean
+            # --- END UPDATED LOGIC ---
 
             payload = {
                 "SMS": {
                     "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
-                    "message": {"sender": "AgriSense", "messagetext": single_msg, "flash": "0"},
-                    "recipients": {"gsm": [{"msidn": phone_clean, "msgid": f"single_{selected_lga}_{dap}"}]},
-                    "dndsender": "1"
+                    "message": {"sender": "AgriSense", "messagetext": single_msg, "flash": "0", "dndsender": "1"},
+                    "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": f"single_{selected_lga}_{dap}"}]}
                 }
             }
             res = requests.post("https://api.ebulksms.com/sendsms.json", json=payload, headers={'Content-Type': 'application/json'}, timeout=10)
@@ -286,6 +303,7 @@ with tab2:
                     raw_phone = str(row.get('Phone', '')).replace("+", "").strip()
                     soil = str(row.get('Soil_Type', 'Loam/Clay')).strip()
 
+                    # Phone number formatting pattern for batch dispatch
                     if raw_phone.startswith("0"):
                         formatted_phone = "234" + raw_phone[1:]
                     elif raw_phone.startswith("234"):
@@ -312,9 +330,8 @@ with tab2:
                     payload = {
                         "SMS": {
                             "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
-                            "message": {"sender": "AgriSense", "messagetext": personalized_msg, "flash": "0"},
-                            "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": f"batch_{clean_lga}_{dap}"}]},
-                            "dndsender": "1"
+                            "message": {"sender": "AgriSense", "messagetext": personalized_msg, "flash": "0", "dndsender": "1"},
+                            "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": f"batch_{clean_lga}_{dap}"}]}
                         }
                     }
 
