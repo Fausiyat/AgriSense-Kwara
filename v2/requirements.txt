@@ -1,5 +1,8 @@
-joblib
-numpy
-pandas
-requests
 streamlit
+pandas
+numpy
+scikit-learn
+sklearn
+joblib
+requests
+openpyxl
