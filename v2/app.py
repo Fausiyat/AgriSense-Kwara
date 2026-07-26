@@ -1,11 +1,15 @@
 # 1. IMPORTS
 import os
 import datetime
+import warnings
 import requests
 import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+# Mute Scikit-Learn version mismatch warnings in deployment logs
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
 # 2. PATH SETUP
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
