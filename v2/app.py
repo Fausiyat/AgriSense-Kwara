@@ -220,7 +220,7 @@ with tab1:
 
             if prob_safe >= 80:
                 st.success(f"🟢 **SAFE TO PLANT ({prob_safe:.1f}% Confidence)**")
-                planting_advisory = "Optimal moisture and 3-day forecast conditions predicted for maize seed germination."
+                planting_advisory = "SAFE TO PLANT, Optimal moisture and 3-day forecast conditions predicted for maize seed germination."
             elif 50 <= prob_safe < 80:
                 st.warning(f"🟡 **MODERATE PLANTING RISK ({prob_safe:.1f}% Confidence)**")
                 planting_advisory = "Planting is possible, but ensure light pre-irrigation if dry conditions persist."
