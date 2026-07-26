@@ -140,41 +140,31 @@ def fetch_live_weather(lat, lon):
         st.error(f"Error fetching live weather: {e}")
     return None
 
-# Load Upgraded Model v2
+# Load Upgraded Model v2 dynamically
 @st.cache_resource
 def load_agrisense_model():
-    # Force absolute directory discovery relative to this app.py file
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    
     for model_file in ["agrisense_kwara_model_v2.pkl", "agrisense_kwara_model.pkl"]:
         model_path = os.path.join(current_dir, model_file)
-        
-        # Debug helper: verify file exists on server filesystem
         if os.path.exists(model_path):
             try:
                 m = joblib.load(model_path)
                 return m, model_file
             except Exception as err:
-                st.error(f"Failed to unpickle {model_file} at {model_path}: {err}")
+                st.error(f"Failed to unpickle {model_file}: {err}")
                 continue
-
     return None, None
 
 model, model_file_name = load_agrisense_model()
-
-if model is None:
-    # Print the exact path where app.py tried looking to confirm folder context
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    st.error(
-        f"⚠️ Model file not found in directory: `{script_dir}`. "
-        "Ensure 'agrisense_kwara_model_v2.pkl' is uploaded in the same folder as app.py."
-    )
 
 # UI Navigation Tabs
 tab1, tab2 = st.tabs(["📊 Single Farm Interactive Dashboard", "🚀 Multi-Farmer Batch SMS Dispatcher"])
 
 # --- TAB 1: SINGLE FARM DASHBOARD ---
 with tab1:
+    if model is None:
+        st.error(f"⚠️ Model file `agrisense_kwara_model_v2.pkl` not found in directory: `{BASE_DIR}`.")
+    
     col_sel1, col_sel2, col_sel3 = st.columns(3)
     with col_sel1:
         selected_lga = st.selectbox("Select Kwara State LGA:", list(LGA_COORDINATES.keys()), key="single_lga")
@@ -190,7 +180,7 @@ with tab1:
     coords = LGA_COORDINATES[selected_lga]
     live_data = fetch_live_weather(coords["lat"], coords["lon"])
 
-    if live_data and model:
+    if live_data:
         st.markdown(f"#### Live Climate Metrics ({selected_lga} LGA)")
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("Today Rain", f"{live_data['today_rain']} mm")
@@ -199,40 +189,43 @@ with tab1:
         c4.metric("Dry Days Streak", f"{live_data['consecutive_dry_days']} Days")
         c5.metric("Avg Temp", f"{live_data['temp_avg']} °C")
 
-        # 7-Feature Model Inference
-        gdd = calculate_gdd(live_data['temp_avg'])
-        X_live = pd.DataFrame([[
-            live_data['today_rain'],
-            live_data['temp_avg'],
-            gdd,
-            live_data['past_7day_rain'],
-            live_data['consecutive_dry_days'],
-            live_data['forecast_3day_rain'],
-            day_of_year
-        ]], columns=['rainfall_mm', 'temp_celsius', 'gdd', 'rain_7day_sum', 'consecutive_dry_days', 'forecast_3day_rain', 'day_of_year'])
-
-        prob_safe = model.predict_proba(X_live)[0][1] * 100
-
-        st.markdown("---")
-        st.markdown("### 🤖 Upgraded Model Decision Output")
-
-        if prob_safe >= 80:
-            st.success(f"🟢 **SAFE TO PLANT ({prob_safe:.1f}% Confidence)**")
-            planting_advisory = "Optimal moisture and 3-day forecast conditions predicted for maize seed germination."
-        elif 50 <= prob_safe < 80:
-            st.warning(f"🟡 **MODERATE PLANTING RISK ({prob_safe:.1f}% Confidence)**")
-            planting_advisory = "Planting is possible, but ensure light pre-irrigation if dry conditions persist."
-        else:
-            st.error(f"🔴 **DO NOT PLANT ({prob_safe:.1f}% Confidence)**")
-            planting_advisory = "High drought or off-season risk detected. Hold off planting to avoid seed loss."
-
+        # Calculate Irrigation Advisory
         irrigation_res = calculate_irrigation_advisory(dap, live_data['consecutive_dry_days'], live_data['forecast_3day_rain'], soil_type)
+
+        # Calculate Model Prediction if available
+        planting_advisory = "N/A"
+        if model is not None:
+            gdd = calculate_gdd(live_data['temp_avg'])
+            X_live = pd.DataFrame([[
+                live_data['today_rain'],
+                live_data['temp_avg'],
+                gdd,
+                live_data['past_7day_rain'],
+                live_data['consecutive_dry_days'],
+                live_data['forecast_3day_rain'],
+                day_of_year
+            ]], columns=['rainfall_mm', 'temp_celsius', 'gdd', 'rain_7day_sum', 'consecutive_dry_days', 'forecast_3day_rain', 'day_of_year'])
+
+            prob_safe = model.predict_proba(X_live)[0][1] * 100
+
+            st.markdown("---")
+            st.markdown("### 🤖 Upgraded Model Decision Output")
+
+            if prob_safe >= 80:
+                st.success(f"🟢 **SAFE TO PLANT ({prob_safe:.1f}% Confidence)**")
+                planting_advisory = "Optimal moisture and 3-day forecast conditions predicted for maize seed germination."
+            elif 50 <= prob_safe < 80:
+                st.warning(f"🟡 **MODERATE PLANTING RISK ({prob_safe:.1f}% Confidence)**")
+                planting_advisory = "Planting is possible, but ensure light pre-irrigation if dry conditions persist."
+            else:
+                st.error(f"🔴 **DO NOT PLANT ({prob_safe:.1f}% Confidence)**")
+                planting_advisory = "High drought or off-season risk detected. Hold off planting to avoid seed loss."
 
         st.info(f"**Growth Stage:** {irrigation_res['stage']} | **Irrigation Status:** {irrigation_res['action']}\n\n{irrigation_res['advisory']}")
 
         st.markdown("---")
 
-        # 3. CHARTING TREND
+        # Charting Trend
         st.write(f"### 📊 7-Day Rainfall Trend for {selected_lga}")
         df_trend = pd.DataFrame({
             "Date": live_data["dates"],
@@ -253,7 +246,6 @@ with tab1:
 
         test_phone = st.text_input("Enter Phone Number:", "08143086509")
         if st.button("🚀 Send Single Test SMS"):
-            # --- UPDATED PHONE NUMBER FORMATTING LOGIC FOR SINGLE SMS ---
             formatted_phone = format_nigerian_phone(test_phone)
 
             payload = {
@@ -271,91 +263,91 @@ with tab2:
     st.markdown("### 📋 Upload Recipient Roster (20 Farmers Pilot)")
     uploaded_file = st.file_uploader("Upload Farmers File (.xlsx or .csv)", type=["xlsx", "csv"])
 
-    if uploaded_file and model:
+    if uploaded_file:
         df_farmers = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
         st.markdown("#### Farmer Roster Preview")
         st.dataframe(df_farmers.head(10))
 
         if st.button("🚀 Execute Daily LGA Batch Broadcast"):
-            dispatch_logs = []
-            today_date = datetime.date.today()
-            day_of_year = today_date.timetuple().tm_yday
+            if model is None:
+                st.error("Cannot run prediction: Model `agrisense_kwara_model_v2.pkl` is missing.")
+            else:
+                dispatch_logs = []
+                today_date = datetime.date.today()
+                day_of_year = today_date.timetuple().tm_yday
 
-            # Grouping dispatches by LGA
-            for lga_name, group in df_farmers.groupby("LGA"):
-                clean_lga = str(lga_name).strip()
-                if clean_lga not in LGA_COORDINATES:
-                    st.warning(f"LGA '{clean_lga}' coordinates not configured. Skipping {len(group)} farmer(s).")
-                    continue
+                for lga_name, group in df_farmers.groupby("LGA"):
+                    clean_lga = str(lga_name).strip()
+                    if clean_lga not in LGA_COORDINATES:
+                        st.warning(f"LGA '{clean_lga}' coordinates not configured. Skipping {len(group)} farmer(s).")
+                        continue
 
-                # Fetch LGA level weather once per group
-                coords = LGA_COORDINATES[clean_lga]
-                weather = fetch_live_weather(coords["lat"], coords["lon"])
-                if not weather:
-                    continue
+                    coords = LGA_COORDINATES[clean_lga]
+                    weather = fetch_live_weather(coords["lat"], coords["lon"])
+                    if not weather:
+                        continue
 
-                gdd = calculate_gdd(weather['temp_avg'])
-                X_live = pd.DataFrame([[
-                    weather['today_rain'],
-                    weather['temp_avg'],
-                    gdd,
-                    weather['past_7day_rain'],
-                    weather['consecutive_dry_days'],
-                    weather['forecast_3day_rain'],
-                    day_of_year
-                ]], columns=['rainfall_mm', 'temp_celsius', 'gdd', 'rain_7day_sum', 'consecutive_dry_days', 'forecast_3day_rain', 'day_of_year'])
+                    gdd = calculate_gdd(weather['temp_avg'])
+                    X_live = pd.DataFrame([[
+                        weather['today_rain'],
+                        weather['temp_avg'],
+                        gdd,
+                        weather['past_7day_rain'],
+                        weather['consecutive_dry_days'],
+                        weather['forecast_3day_rain'],
+                        day_of_year
+                    ]], columns=['rainfall_mm', 'temp_celsius', 'gdd', 'rain_7day_sum', 'consecutive_dry_days', 'forecast_3day_rain', 'day_of_year'])
 
-                prob_safe = model.predict_proba(X_live)[0][1] * 100
-                planting_status = "SAFE TO PLANT" if prob_safe >= 80 else "DO NOT PLANT"
+                    prob_safe = model.predict_proba(X_live)[0][1] * 100
+                    planting_status = "SAFE TO PLANT" if prob_safe >= 80 else "DO NOT PLANT"
 
-                # Send personalized SMS per farmer
-                for _, row in group.iterrows():
-                    farmer_name = str(row.get('Name', 'Farmer')).strip()
-                    raw_phone = str(row.get('Phone', '')).strip()
-                    soil = str(row.get('Soil_Type', 'Loam/Clay')).strip()
+                    for _, row in group.iterrows():
+                        farmer_name = str(row.get('Name', 'Farmer')).strip()
+                        raw_phone = str(row.get('Phone', '')).strip()
+                        soil = str(row.get('Soil_Type', 'Loam/Clay')).strip()
 
-                    formatted_phone = format_nigerian_phone(raw_phone)
+                        formatted_phone = format_nigerian_phone(raw_phone)
 
-                    try:
-                        p_date = pd.to_datetime(row['Planting_Date']).date()
-                        dap = max(0, (today_date - p_date).days)
-                    except Exception:
-                        dap = 0
+                        try:
+                            p_date = pd.to_datetime(row['Planting_Date']).date()
+                            dap = max(0, (today_date - p_date).days)
+                        except Exception:
+                            dap = 0
 
-                    irrigation = calculate_irrigation_advisory(dap, weather['consecutive_dry_days'], weather['forecast_3day_rain'], soil)
+                        irrigation = calculate_irrigation_advisory(dap, weather['consecutive_dry_days'], weather['forecast_3day_rain'], soil)
 
-                    personalized_msg = (
-                        f"🌾 AgriSense ({clean_lga})\n"
-                        f"Hello {farmer_name},\n"
-                        f"Planting: {planting_status} ({prob_safe:.0f}% Conf)\n"
-                        f"Irrigation: {irrigation['action']}\n"
-                        f"{irrigation['advisory']}"
-                    )
+                        personalized_msg = (
+                            f"🌾 AgriSense ({clean_lga})\n"
+                            f"Hello {farmer_name},\n"
+                            f"Planting: {planting_status} ({prob_safe:.0f}% Conf)\n"
+                            f"Irrigation: {irrigation['action']}\n"
+                            f"{irrigation['advisory']}"
+                        )
 
-                    payload = {
-                        "SMS": {
-                            "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
-                            "message": {"sender": "AgriSense", "messagetext": personalized_msg, "flash": "0", "dndsender": "1"},
-                            "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": f"batch_{clean_lga}_{dap}"}]}
+                        payload = {
+                            "SMS": {
+                                "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
+                                "message": {"sender": "AgriSense", "messagetext": personalized_msg, "flash": "0", "dndsender": "1"},
+                                "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": f"batch_{clean_lga}_{dap}"}]}
+                            }
                         }
-                    }
 
-                    try:
-                        res = requests.post("https://api.ebulksms.com/sendsms.json", json=payload, headers={'Content-Type': 'application/json'}, timeout=10)
-                        res_json = res.json()
-                        status = res_json.get("response", {}).get("status", "FAILED")
-                    except Exception as err:
-                        status = f"ERROR: {err}"
+                        try:
+                            res = requests.post("https://api.ebulksms.com/sendsms.json", json=payload, headers={'Content-Type': 'application/json'}, timeout=10)
+                            res_json = res.json()
+                            status = res_json.get("response", {}).get("status", "FAILED")
+                        except Exception as err:
+                            status = f"ERROR: {err}"
 
-                    dispatch_logs.append({
-                        "Farmer Name": farmer_name,
-                        "Phone": formatted_phone,
-                        "LGA": clean_lga,
-                        "Crop Age (DAP)": dap,
-                        "Planting Advisory": planting_status,
-                        "Dispatch Status": status
-                    })
+                        dispatch_logs.append({
+                            "Farmer Name": farmer_name,
+                            "Phone": formatted_phone,
+                            "LGA": clean_lga,
+                            "Crop Age (DAP)": dap,
+                            "Planting Advisory": planting_status,
+                            "Dispatch Status": status
+                        })
 
-            st.success("🎉 Batch Broadcast Execution Completed!")
-            st.markdown("### 📊 Live Dispatch Execution Report")
-            st.dataframe(pd.DataFrame(dispatch_logs))
+                st.success("🎉 Batch Broadcast Execution Completed!")
+                st.markdown("### 📊 Live Dispatch Execution Report")
+                st.dataframe(pd.DataFrame(dispatch_logs))
