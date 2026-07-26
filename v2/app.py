@@ -117,15 +117,18 @@ def fetch_live_weather(lat, lon):
             daily = data['daily']
             today_index = 7
 
-            today_rain = daily['precipitation_sum'][today_index]
-            temp_max = daily['temperature_2m_max'][today_index]
-            temp_min = daily['temperature_2m_min'][today_index]
+            # Extract raw metrics with fallback for nulls
+            raw_precip = [0.0 if p is None else p for p in daily['precipitation_sum']]
+            
+            today_rain = raw_precip[today_index]
+            temp_max = daily['temperature_2m_max'][today_index] or 25.0
+            temp_min = daily['temperature_2m_min'][today_index] or 20.0
 
-            past_7day_rain = sum(daily['precipitation_sum'][:today_index])
-            forecast_3day_rain = sum(daily['precipitation_sum'][today_index+1:today_index+4])
+            past_7day_rain = sum(raw_precip[:today_index])
+            forecast_3day_rain = sum(raw_precip[today_index+1:today_index+4])
 
             dry_days = 0
-            for r in reversed(daily['precipitation_sum'][:today_index]):
+            for r in reversed(raw_precip[:today_index]):
                 if r < 1.0: 
                     dry_days += 1
                 else: 
@@ -138,7 +141,7 @@ def fetch_live_weather(lat, lon):
                 "forecast_3day_rain": round(forecast_3day_rain, 1),
                 "consecutive_dry_days": dry_days,
                 "dates": daily['time'][:today_index+1],
-                "rain_history": daily['precipitation_sum'][:today_index+1]
+                "rain_history": raw_precip[:today_index+1]
             }
     except Exception as e:
         st.error(f"Error fetching live weather: {e}")
@@ -235,11 +238,14 @@ with tab1:
             "Date": live_data["dates"],
             "Rainfall (mm)": live_data["rain_history"]
         })
+        # Clean missing values before chart rendering to prevent infinite extent warning
+        df_trend["Rainfall (mm)"] = df_trend["Rainfall (mm)"].fillna(0.0)
         st.bar_chart(df_trend.set_index("Date"))
 
         st.markdown("---")
         st.markdown("### 📱 Test Single SMS Broadcast")
 
+        # --- UPDATED PHONE NUMBER FORMATTING LOGIC FOR SINGLE SMS ---
         single_msg = (
             f"🌾 [AgriSense {selected_lga}]\n"
             f"Planting: {planting_advisory}\n"
