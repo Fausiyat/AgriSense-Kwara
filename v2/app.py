@@ -46,7 +46,7 @@ LGA_COORDINATES = {
 
 # Helper: Phone Number Standardization (234 Format)
 def format_nigerian_phone(raw_phone):
-    phone_clean = str(raw_phone).replace("+", "").strip()
+    phone_clean = str(raw_phone).replace("+", "").replace(" ", "").strip()
     if phone_clean.startswith("0"):
         return "234" + phone_clean[1:]
     elif phone_clean.startswith("234"):
@@ -77,27 +77,27 @@ def calculate_irrigation_advisory(dap, consecutive_dry_days, forecast_3day_rain,
             "stage": "Maturation / Drying (Days 101+)",
             "status": "STOP_IRRIGATION",
             "action": "🟢 STOP IRRIGATION",
-            "advisory": "Crop mature. Stop all watering to allow proper field drying before harvest."
+            "advisory": "Crop mature. Stop watering for field drying before harvest."
         }
 
     if consecutive_dry_days >= max_dry:
         if forecast_3day_rain >= 15.0:
             status = "WAIT_FOR_RAIN"
             action = "🟡 HOLD OFF IRRIGATING"
-            advisory = f"Soil is dry ({consecutive_dry_days} days), but ~{forecast_3day_rain:.1f}mm rain expected in 72h. Save water."
+            advisory = f"Soil dry ({consecutive_dry_days}d), but ~{forecast_3day_rain:.1f}mm rain in 72h. Save water."
         else:
             if "Flowering" in stage:
                 status = "EMERGENCY_IRRIGATE"
-                action = "🚨 CRITICAL: IRRIGATE IMMEDIATELY"
-                advisory = f"CRITICAL PHASE! {consecutive_dry_days} dry days detected. Delay risks 35-100% pollination failure!"
+                action = "🚨 CRITICAL: IRRIGATE NOW"
+                advisory = f"CRITICAL! {consecutive_dry_days} dry days. Delay risks 35-100% pollination failure!"
             else:
                 status = "IRRIGATE_NOW"
                 action = "🔵 IRRIGATE NOW"
-                advisory = f"Dry spell limit reached for {stage}. Apply ~{daily_need * 3:.1f}mm water."
+                advisory = f"Dry limit reached. Apply ~{daily_need * 3:.1f}mm water."
     else:
         status = "MOISTURE_SAFE"
         action = "🟢 MOISTURE OPTIMAL"
-        advisory = f"Soil moisture adequate for {stage} stage. No extra watering required."
+        advisory = f"Moisture adequate for {stage}. No extra watering needed."
 
     return {"stage": stage, "status": status, "action": action, "advisory": advisory}
 
@@ -220,13 +220,13 @@ with tab1:
 
             if prob_safe >= 80:
                 st.success(f"🟢 **SAFE TO PLANT ({prob_safe:.1f}% Confidence)**")
-                planting_advisory = "SAFE TO PLANT, Optimal moisture and 3-day forecast conditions predicted for maize seed germination."
+                planting_advisory = "SAFE TO PLANT: Optimal moisture & 3-day forecast conditions predicted."
             elif 50 <= prob_safe < 80:
                 st.warning(f"🟡 **MODERATE PLANTING RISK ({prob_safe:.1f}% Confidence)**")
-                planting_advisory = "Planting is possible, but ensure light pre-irrigation if dry conditions persist."
+                planting_advisory = "MODERATE RISK: Ensure light pre-irrigation if dry conditions persist."
             else:
                 st.error(f"🔴 **DO NOT PLANT ({prob_safe:.1f}% Confidence)**")
-                planting_advisory = "High drought or off-season risk detected. Hold off planting to avoid seed loss."
+                planting_advisory = "DO NOT PLANT: High drought/off-season risk detected."
 
         st.info(f"**Growth Stage:** {irrigation_res['stage']} | **Irrigation Status:** {irrigation_res['action']}\n\n{irrigation_res['advisory']}")
 
@@ -238,21 +238,27 @@ with tab1:
             "Date": live_data["dates"],
             "Rainfall (mm)": live_data["rain_history"]
         })
-        # Clean missing values before chart rendering to prevent infinite extent warning
         df_trend["Rainfall (mm)"] = df_trend["Rainfall (mm)"].fillna(0.0)
         st.bar_chart(df_trend.set_index("Date"))
 
         st.markdown("---")
         st.markdown("### 📱 Test Single SMS Broadcast")
 
-        # --- UPDATED PHONE NUMBER FORMATTING LOGIC FOR SINGLE SMS ---
-        single_msg = (
-            f"🌾 [AgriSense {selected_lga}]\n"
-            f"Planting: {planting_advisory}\n"
-            f"Irrigation: {irrigation_res['action']}\n"
-            f"Advice: {irrigation_res['advisory']}"
+        # Concise default SMS body tailored for pilot execution
+        default_single_msg = (
+            f"AgriSense({selected_lga}): {planting_advisory} "
+            f"Irrigation: {irrigation_res['action']}. {irrigation_res['advisory']}"
         )
-        st.text_area("SMS Preview:", single_msg, height=120)
+        
+        single_msg = st.text_area("SMS Content:", default_single_msg, height=100)
+        
+        # Character & SMS Segment Counter Logic
+        msg_len = len(single_msg)
+        segments = (msg_len // 160) + 1
+        if msg_len <= 160:
+            st.caption(f"📏 **Length:** {msg_len}/160 chars (1 SMS segment)")
+        else:
+            st.warning(f"⚠️ **Length:** {msg_len} chars ({segments} SMS segments). Keep under 160 characters to optimize pilot dispatch costs.")
 
         test_phone = st.text_input("Enter Phone Number:", "08143086509")
         if st.button("🚀 Send Single Test SMS"):
@@ -326,12 +332,11 @@ with tab2:
 
                         irrigation = calculate_irrigation_advisory(dap, weather['consecutive_dry_days'], weather['forecast_3day_rain'], soil)
 
+                        # Compact batch message (~160 chars)
                         personalized_msg = (
-                            f"🌾 AgriSense ({clean_lga})\n"
-                            f"Hello {farmer_name},\n"
-                            f"Planting: {planting_status} ({prob_safe:.0f}% Conf)\n"
-                            f"Irrigation: {irrigation['action']}\n"
-                            f"{irrigation['advisory']}"
+                            f"AgriSense({clean_lga}): Hi {farmer_name}, "
+                            f"Planting: {planting_status} ({prob_safe:.0f}%). "
+                            f"Irrigation: {irrigation['action']}. {irrigation['advisory']}"
                         )
 
                         payload = {
@@ -355,7 +360,8 @@ with tab2:
                             "LGA": clean_lga,
                             "Crop Age (DAP)": dap,
                             "Planting Advisory": planting_status,
-                            "Dispatch Status": status
+                            "Dispatch Status": status,
+                            "SMS Length": len(personalized_msg)
                         })
 
                 st.success("🎉 Batch Broadcast Execution Completed!")
