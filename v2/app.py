@@ -366,7 +366,13 @@ with tab1:
     # 2. Paid vs. Unpaid User Access Gate
     st.markdown("---")
     st.markdown("### 🔑 Farmer Account Portal / Ipade Wo Tesiwaju")
-    user_input_phone = st.text_input("Enter Phone Number / Tẹ Nọmba Fonu Re:", "08143086509", key="user_login_phone")
+    # Updated Code:
+    user_input_phone = st.text_input(
+    "Enter Phone Number / Tẹ Nọmba Fonu Re:", 
+    value="", 
+    placeholder="e.g. 08143086509", 
+    key="user_login_phone"
+    )
     
     # Simple Access Check (For pilot, we verify against loaded roster or allow active status)
     formatted_login = format_nigerian_phone(user_input_phone)
