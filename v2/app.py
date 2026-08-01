@@ -370,7 +370,7 @@ with tab1:
     user_input_phone = st.text_input(
     "Enter Phone Number / Tẹ Nọmba Fonu Re:", 
     value="", 
-    placeholder="e.g. 08143086509", 
+    placeholder="e.g. 08112345678", 
     key="user_login_phone"
     )
     
