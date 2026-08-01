@@ -44,6 +44,7 @@ LGA_COORDINATES = {
     "Kaiama": {"lat": 9.6053, "lon": 3.9410},
     "Ifelodun": {"lat": 8.3167, "lon": 4.7167}
 }
+
 # ==========================================
 # TRANSLATION DICTIONARIES (English & Yoruba)
 # ==========================================
@@ -187,7 +188,6 @@ def fetch_live_weather(lat, lon):
         f"past_days=7&forecast_days=3&timezone=Africa%2FLagos"
     )
 
-    # Pre-calculated safe fallback data for Kwara State
     today = datetime.date.today()
     fallback_dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7, -1, -1)]
     fallback_data = {
@@ -203,7 +203,6 @@ def fetch_live_weather(lat, lon):
     try:
         response = requests.get(url, timeout=10)
         
-        # Handle HTTP 200 Success
         if response.status_code == 200:
             data = response.json()
             daily = data.get('daily', {})
@@ -242,7 +241,6 @@ def fetch_live_weather(lat, lon):
                 "rain_history": raw_precip[:today_index+1]
             }
         
-        # Display warning for non-200 responses
         st.warning(f"⚠️ Weather API Status {response.status_code}. Loading local climate fallback parameters...")
         return fallback_data
 
@@ -267,12 +265,12 @@ def load_agrisense_model():
 
 model, model_file_name = load_agrisense_model()
 
-# UI Navigation Tabs
+# SINGLE UI NAVIGATION TAB DECLARATION
 tab1, tab2 = st.tabs(["📊 Single Farm Interactive Dashboard", "🚀 Multi-Farmer Batch SMS Dispatcher"])
 
 # --- TAB 1: SINGLE FARM DASHBOARD ---
 with tab1:
-    # 1. Global / Tab Language Switcher
+    # Global / Tab Language Switcher
     lang = st.radio("🌐 Choose Language / Yan Ede:", ["English", "Yoruba"], horizontal=True, key="dashboard_lang")
     txt = UI_TEXT[lang] # Load dictionary based on selected language
 
@@ -394,9 +392,7 @@ with tab1:
             }
             res = requests.post("https://api.ebulksms.com/sendsms.json", json=payload, headers={'Content-Type': 'application/json'}, timeout=10)
             st.write("EbulkSMS API Response:", res.json())
-            
-# UI Navigation Tabs
-tab1, tab2 = st.tabs(["📊 Single Farm Interactive Dashboard", "🚀 Multi-Farmer Batch SMS Dispatcher"])
+
 # --- TAB 2: MULTI-FARMER BATCH SMS DISPATCHER ---
 with tab2:
     st.markdown("### 📋 Upload Recipient Roster (50 Farmers Target)")
@@ -524,4 +520,3 @@ with tab2:
                 st.success("🎉 Batch Broadcast Execution Completed!")
                 st.markdown("### 📊 Live Dispatch Execution Report")
                 st.dataframe(pd.DataFrame(dispatch_logs))
-                            
