@@ -44,6 +44,81 @@ LGA_COORDINATES = {
     "Kaiama": {"lat": 9.6053, "lon": 3.9410},
     "Ifelodun": {"lat": 8.3167, "lon": 4.7167}
 }
+# ==========================================
+# TRANSLATION DICTIONARIES (English & Yoruba)
+# ==========================================
+
+# UI Translations for Dashboard Elements
+UI_TEXT = {
+    "English": {
+        "lga_label": "Select Kwara State LGA:",
+        "pdate_label": "Planting Date:",
+        "soil_label": "Farm Soil Type:",
+        "live_metrics_header": "Live Climate Metrics",
+        "today_rain": "Today Rain",
+        "past_rain": "Past 7-Day Rain",
+        "forecast_rain": "3-Day Forecast Rain",
+        "dry_streak": "Dry Days Streak",
+        "avg_temp": "Avg Temp",
+        "model_header": "🤖 Upgraded Model Decision Output",
+        "safe_plant": "🟢 SAFE TO PLANT",
+        "mod_risk": "🟡 MODERATE PLANTING RISK",
+        "no_plant": "🔴 DO NOT PLANT",
+        "growth_stage": "Growth Stage",
+        "irrig_status": "Irrigation Status",
+        "trend_header": "📊 7-Day Rainfall Trend for",
+        "sms_header": "📱 Test Single SMS Broadcast",
+        "sms_content": "SMS Content:",
+        "enter_phone": "Enter Phone Number:",
+        "send_sms_btn": "🚀 Send Single Test SMS"
+    },
+    "Yoruba": {
+        "lga_label": "Yan Ijoba Ibile Re ni Kwara:",
+        "pdate_label": "Ojo Ti O Gbin Egbin Re:",
+        "soil_label": "Iru Erupe Oko Re:",
+        "live_metrics_header": "Agbaye Ateworogbo Afefe loni ni LGA",
+        "today_rain": "Ojo Loni",
+        "past_rain": "Ojo Osese Ko koidi",
+        "forecast_rain": "Ojo Ti Nbo Ni Ojo Meta",
+        "dry_streak": "Ojo Ti Ojo Ko Ro",
+        "avg_temp": "Agbara Ooru",
+        "model_header": "🤖 Imoran Agbara Eto AgriSense",
+        "safe_plant": "🟢 O DARA LATI GBIN",
+        "mod_risk": "🟡 EWU DIE WA FUN GBIGBIN",
+        "no_plant": "🔴 E MURA DA GBIGBIN DURO",
+        "growth_stage": "Ipele Idagbasoke Egbin",
+        "irrig_status": "Ipo Fun Omi BoriEgbin",
+        "trend_header": "📊 Sise Akosile Ojo Osese Koidi fun",
+        "sms_header": "📱 Daju Sise Ransan Ase Nikan",
+        "sms_content": "Akokono Ase SMS:",
+        "enter_phone": "Tẹ Nọmba Fonu Re:",
+        "send_sms_btn": "🚀 Ransan Ase SMS Ni Yanyan"
+    }
+}
+
+# Dynamic Irrigation Advisory Translations
+IRRIGATION_TRANSLATIONS = {
+    "STOP_IRRIGATION": {
+        "action_yo": "🟢 DA OMI DURO",
+        "advisory_yo": "Egbin ti gbo. Da omi duro lati gbe oko ki o to kore."
+    },
+    "WAIT_FOR_RAIN": {
+        "action_yo": "🟡 DUMURA FUN OJO",
+        "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati 72. Fi omi pamora."
+    },
+    "EMERGENCY_IRRIGATE": {
+        "action_yo": "🚨 EWU: WUN OMI NIOUN!",
+        "advisory_yo": "EWU NLA! Erupe gbe. Ti o ba pe lati wun omi, egbin le ba je!"
+    },
+    "IRRIGATE_NOW": {
+        "action_yo": "🔵 WUN OMI NIOUN",
+        "advisory_yo": "Nkan gbigbe ti po ju. Wun omi daradara fun oko re."
+    },
+    "MOISTURE_SAFE": {
+        "action_yo": "🟢 OMI WA DARADARA",
+        "advisory_yo": "Omi ti to fun ipele idagbasoke egbin re. Ko buido wun omi sii."
+    }
+}
 
 # Helper: Phone Number Standardization (234 Format)
 def format_nigerian_phone(raw_phone):
@@ -197,16 +272,20 @@ tab1, tab2 = st.tabs(["📊 Single Farm Interactive Dashboard", "🚀 Multi-Farm
 
 # --- TAB 1: SINGLE FARM DASHBOARD ---
 with tab1:
+    # 1. Global / Tab Language Switcher
+    lang = st.radio("🌐 Choose Language / Yan Ede:", ["English", "Yoruba"], horizontal=True, key="dashboard_lang")
+    txt = UI_TEXT[lang] # Load dictionary based on selected language
+
     if model is None:
         st.error(f"⚠️ Model file `agrisense_kwara_model_v2.pkl` not found in directory: `{BASE_DIR}`.")
     
     col_sel1, col_sel2, col_sel3 = st.columns(3)
     with col_sel1:
-        selected_lga = st.selectbox("Select Kwara State LGA:", list(LGA_COORDINATES.keys()), key="single_lga")
+        selected_lga = st.selectbox(txt["lga_label"], list(LGA_COORDINATES.keys()), key="single_lga")
     with col_sel2:
-        planting_date = st.date_input("Planting Date:", datetime.date.today(), key="single_pdate")
+        planting_date = st.date_input(txt["pdate_label"], datetime.date.today(), key="single_pdate")
     with col_sel3:
-        soil_type = st.selectbox("Farm Soil Type:", ["Loam/Clay", "Sandy"], key="single_soil")
+        soil_type = st.selectbox(txt["soil_label"], ["Loam/Clay", "Sandy"], key="single_soil")
 
     today_date = datetime.date.today()
     dap = max(0, (today_date - planting_date).days)
@@ -216,16 +295,24 @@ with tab1:
     live_data = fetch_live_weather(coords["lat"], coords["lon"])
 
     if live_data:
-        st.markdown(f"#### Live Climate Metrics ({selected_lga} LGA)")
+        st.markdown(f"#### {txt['live_metrics_header']} ({selected_lga})")
         c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Today Rain", f"{live_data['today_rain']} mm")
-        c2.metric("Past 7-Day Rain", f"{live_data['past_7day_rain']} mm")
-        c3.metric("3-Day Forecast Rain", f"{live_data['forecast_3day_rain']} mm")
-        c4.metric("Dry Days Streak", f"{live_data['consecutive_dry_days']} Days")
-        c5.metric("Avg Temp", f"{live_data['temp_avg']} °C")
+        c1.metric(txt["today_rain"], f"{live_data['today_rain']} mm")
+        c2.metric(txt["past_rain"], f"{live_data['past_7day_rain']} mm")
+        c3.metric(txt["forecast_rain"], f"{live_data['forecast_3day_rain']} mm")
+        c4.metric(txt["dry_streak"], f"{live_data['consecutive_dry_days']} Days")
+        c5.metric(txt["avg_temp"], f"{live_data['temp_avg']} °C")
 
         # Calculate Irrigation Advisory
         irrigation_res = calculate_irrigation_advisory(dap, live_data['consecutive_dry_days'], live_data['forecast_3day_rain'], soil_type)
+        
+        # Get Yoruba translations for the current irrigation status key
+        status_key = irrigation_res.get("status", "MOISTURE_SAFE")
+        yo_irrig = IRRIGATION_TRANSLATIONS.get(status_key, IRRIGATION_TRANSLATIONS["MOISTURE_SAFE"])
+
+        # Set localized advisory texts
+        action_text = yo_irrig["action_yo"] if lang == "Yoruba" else irrigation_res["action"]
+        advisory_text = yo_irrig["advisory_yo"] if lang == "Yoruba" else irrigation_res["advisory"]
 
         # Calculate Model Prediction if available
         planting_advisory = "N/A"
@@ -244,24 +331,24 @@ with tab1:
             prob_safe = model.predict_proba(X_live)[0][1] * 100
 
             st.markdown("---")
-            st.markdown("### 🤖 Upgraded Model Decision Output")
+            st.markdown(f"### {txt['model_header']}")
 
             if prob_safe >= 80:
-                st.success(f"🟢 **SAFE TO PLANT ({prob_safe:.1f}% Confidence)**")
-                planting_advisory = "SAFE TO PLANT: Optimal moisture & 3-day forecast conditions predicted."
+                st.success(f"{txt['safe_plant']} ({prob_safe:.1f}% Confidence)")
+                planting_advisory = "O DARA LATI GBIN" if lang == "Yoruba" else "SAFE TO PLANT: Optimal moisture & 3-day forecast conditions predicted."
             elif 50 <= prob_safe < 80:
-                st.warning(f"🟡 **MODERATE PLANTING RISK ({prob_safe:.1f}% Confidence)**")
-                planting_advisory = "MODERATE RISK: Ensure light pre-irrigation if dry conditions persist."
+                st.warning(f"{txt['mod_risk']} ({prob_safe:.1f}% Confidence)")
+                planting_advisory = "EWU DIE WA" if lang == "Yoruba" else "MODERATE RISK: Ensure light pre-irrigation if dry conditions persist."
             else:
-                st.error(f"🔴 **DO NOT PLANT ({prob_safe:.1f}% Confidence)**")
-                planting_advisory = "DO NOT PLANT: High drought/off-season risk detected."
+                st.error(f"{txt['no_plant']} ({prob_safe:.1f}% Confidence)")
+                planting_advisory = "E MURA DA GBIGBIN DURO" if lang == "Yoruba" else "DO NOT PLANT: High drought/off-season risk detected."
 
-        st.info(f"**Growth Stage:** {irrigation_res['stage']} | **Irrigation Status:** {irrigation_res['action']}\n\n{irrigation_res['advisory']}")
+        st.info(f"**{txt['growth_stage']}:** {irrigation_res['stage']} | **{txt['irrig_status']}:** {action_text}\n\n{advisory_text}")
 
         st.markdown("---")
 
         # Charting Trend
-        st.write(f"### 📊 7-Day Rainfall Trend for {selected_lga}")
+        st.write(f"### {txt['trend_header']} {selected_lga}")
         df_trend = pd.DataFrame({
             "Date": live_data["dates"],
             "Rainfall (mm)": live_data["rain_history"]
@@ -270,14 +357,21 @@ with tab1:
         st.bar_chart(df_trend.set_index("Date"))
 
         st.markdown("---")
-        st.markdown("### 📱 Test Single SMS Broadcast")
+        st.markdown(f"### {txt['sms_header']}")
 
-        default_single_msg = (
-            f"AgriSense({selected_lga}): {planting_advisory} "
-            f"Irrigation: {irrigation_res['action']}. {irrigation_res['advisory']}"
-        )
+        # Localized dynamic SMS message body
+        if lang == "Yoruba":
+            default_single_msg = (
+                f"AgriSense({selected_lga}): Imoran Gbigbin: {planting_advisory} ({prob_safe:.0f}%). "
+                f"Omi: {action_text}. {advisory_text}"
+            )[:160]
+        else:
+            default_single_msg = (
+                f"AgriSense({selected_lga}): {planting_advisory} "
+                f"Irrigation: {action_text}. {advisory_text}"
+            )[:160]
         
-        single_msg = st.text_area("SMS Content:", default_single_msg, height=100)
+        single_msg = st.text_area(txt["sms_content"], default_single_msg, height=100)
         
         msg_len = len(single_msg)
         segments = (msg_len // 160) + 1
@@ -286,8 +380,8 @@ with tab1:
         else:
             st.warning(f"⚠️ **Length:** {msg_len} chars ({segments} SMS segments). Keep under 160 characters to optimize pilot dispatch costs.")
 
-        test_phone = st.text_input("Enter Phone Number:", "08143086509")
-        if st.button("🚀 Send Single Test SMS"):
+        test_phone = st.text_input(txt["enter_phone"], "08143086509")
+        if st.button(txt["send_sms_btn"]):
             formatted_phone = format_nigerian_phone(test_phone)
             unique_id = f"single_{selected_lga}_{dap}_{int(datetime.datetime.now().timestamp())}"
 
@@ -300,10 +394,14 @@ with tab1:
             }
             res = requests.post("https://api.ebulksms.com/sendsms.json", json=payload, headers={'Content-Type': 'application/json'}, timeout=10)
             st.write("EbulkSMS API Response:", res.json())
-
+            
+# UI Navigation Tabs
+tab1, tab2 = st.tabs(["📊 Single Farm Interactive Dashboard", "🚀 Multi-Farmer Batch SMS Dispatcher"])
 # --- TAB 2: MULTI-FARMER BATCH SMS DISPATCHER ---
 with tab2:
     st.markdown("### 📋 Upload Recipient Roster (50 Farmers Target)")
+    st.info("💡 **Language Support:** Add a `Language` column (`Yoruba` or `English`) in your file to send localized SMS to each farmer.")
+    
     uploaded_file = st.file_uploader("Upload Farmers File (.xlsx or .csv)", type=["xlsx", "csv"])
 
     if uploaded_file:
@@ -344,9 +442,9 @@ with tab2:
                         ]], columns=['rainfall_mm', 'temp_celsius', 'gdd', 'rain_7day_sum', 'consecutive_dry_days', 'forecast_3day_rain', 'day_of_year'])
 
                         prob_safe = model.predict_proba(X_live)[0][1] * 100
-                        planting_status = "SAFE TO PLANT" if prob_safe >= 80 else "DO NOT PLANT"
+                        planting_status_en = "SAFE TO PLANT" if prob_safe >= 80 else "DO NOT PLANT"
+                        planting_status_yo = "O DARA LATI GBIN" if prob_safe >= 80 else "E MURA DA GBIGBIN DURO"
 
-                        # Build bulk recipient array and log array per LGA
                         gsm_recipients = []
                         lga_farmer_records = []
 
@@ -354,6 +452,7 @@ with tab2:
                             farmer_name = str(row.get('Name', 'Farmer')).strip()
                             raw_phone = str(row.get('Phone', '')).strip()
                             soil = str(row.get('Soil_Type', 'Loam/Clay')).strip()
+                            farmer_lang = str(row.get('Language', 'Yoruba')).strip().title()
 
                             formatted_phone = format_nigerian_phone(raw_phone)
 
@@ -364,16 +463,25 @@ with tab2:
                                 dap = 0
 
                             irrigation = calculate_irrigation_advisory(dap, weather['consecutive_dry_days'], weather['forecast_3day_rain'], soil)
+                            status_key = irrigation.get("status", "MOISTURE_SAFE")
+                            yo_irrig = IRRIGATION_TRANSLATIONS.get(status_key, IRRIGATION_TRANSLATIONS["MOISTURE_SAFE"])
 
-                            personalized_msg = (
-                                f"AgriSense({clean_lga}): Hi {farmer_name}, "
-                                f"Plant: {planting_status} ({prob_safe:.0f}%). "
-                                f"Irrigate: {irrigation['action']}. {irrigation['advisory']}"
-                            )[:160]
+                            # Dynamically pick SMS text based on farmer's preferred language
+                            if farmer_lang == "Yoruba":
+                                personalized_msg = (
+                                    f"AgriSense({clean_lga}): Bawo {farmer_name}, "
+                                    f"Gbigbin: {planting_status_yo} ({prob_safe:.0f}%). "
+                                    f"Omi: {yo_irrig['action_yo']}."
+                                )[:160]
+                            else:
+                                personalized_msg = (
+                                    f"AgriSense({clean_lga}): Hi {farmer_name}, "
+                                    f"Plant: {planting_status_en} ({prob_safe:.0f}%). "
+                                    f"Irrigate: {irrigation['action']}."
+                                )[:160]
 
                             unique_msgid = f"batch_{clean_lga}_{dap}_{idx}"
 
-                            # Append to EbulkSMS recipient batch list
                             gsm_recipients.append({
                                 "msidn": formatted_phone,
                                 "msgid": unique_msgid
@@ -383,8 +491,9 @@ with tab2:
                                 "Farmer Name": farmer_name,
                                 "Phone": formatted_phone,
                                 "LGA": clean_lga,
+                                "Language": farmer_lang,
                                 "Crop Age (DAP)": dap,
-                                "Planting Advisory": planting_status,
+                                "Planting Advisory": planting_status_yo if farmer_lang == "Yoruba" else planting_status_en,
                                 "SMS Length": len(personalized_msg),
                                 "Message Body": personalized_msg
                             })
@@ -408,7 +517,6 @@ with tab2:
                             except Exception as err:
                                 api_status = f"ERROR: {err}"
 
-                            # Log status across all farmers in this LGA batch
                             for record in lga_farmer_records:
                                 record["Dispatch Status"] = api_status
                                 dispatch_logs.append(record)
@@ -416,3 +524,4 @@ with tab2:
                 st.success("🎉 Batch Broadcast Execution Completed!")
                 st.markdown("### 📊 Live Dispatch Execution Report")
                 st.dataframe(pd.DataFrame(dispatch_logs))
+                            
