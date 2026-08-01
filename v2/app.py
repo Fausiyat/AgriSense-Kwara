@@ -88,7 +88,7 @@ UI_TEXT = {
         "mod_risk": "🟡 EWU DIE WA FUN GBIGBIN",
         "no_plant": "🔴 E MURA DA GBIGBIN DURO",
         "growth_stage": "Ipele Idagbasoke Egbin",
-        "irrig_status": "Ipo Fun Omi BoriEgbin",
+        "irrig_status": "Ipo Fun Omi Bori Egbin",
         "trend_header": "📊 Sise Akosile Ojo Osese Koidi fun",
         "sms_header": "📱 Daju Sise Ransan Ase Nikan",
         "sms_content": "Akokono Ase SMS:",
@@ -105,7 +105,7 @@ IRRIGATION_TRANSLATIONS = {
     },
     "WAIT_FOR_RAIN": {
         "action_yo": "🟡 DUMURA FUN OJO",
-        "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati 72. Fi omi pamora."
+        "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati méjíléláàdọ́rin. Fi omi pamora."
     },
     "EMERGENCY_IRRIGATE": {
         "action_yo": "🚨 EWU: WUN OMI NIOUN!",
@@ -113,11 +113,11 @@ IRRIGATION_TRANSLATIONS = {
     },
     "IRRIGATE_NOW": {
         "action_yo": "🔵 WUN OMI NIOUN",
-        "advisory_yo": "Nkan gbigbe ti po ju. Wun omi daradara fun oko re."
+        "advisory_yo": "Nkan gbigbe ti po ju. Wun omi daadaa si oko re."
     },
     "MOISTURE_SAFE": {
         "action_yo": "🟢 OMI WA DARADARA",
-        "advisory_yo": "Omi ti to fun ipele idagbasoke egbin re. Ko buido wun omi sii."
+        "advisory_yo": "Omi ti to fun ipele idagbasoke egbin re. Ko gbudo won omi sii."
     }
 }
 
@@ -150,22 +150,22 @@ ADVISORY_TRANSLATIONS = {
     },
     "WAIT_FOR_RAIN": {
         "action_yo": "🟡 DUMURA FUN OJO",
-        "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati 72. Fi omi pamora.",
-        "fert_yo": "⚠️ DUMURA FUN TAKETE: Ojo nla nbo ni wakati 72. Takete re le ba je lo ti o ba fi si loni!"
+        "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati méjíléláàdọ́rin. Fi omi pamora.",
+        "fert_yo": "⚠️ DUMURA FUN TAKETE: Ojo nla nbo ni wakati méjíléláàdọ́rin. Takete re le ba je lo ti o ba fi si loni!"
     },
     "EMERGENCY_IRRIGATE": {
-        "action_yo": "🚨 EWU: WUN OMI NIOUN!",
-        "advisory_yo": "EWU NLA! Erupe gbe. Ti o ba pe lati wun omi, egbin le ba je!",
-        "fert_yo": "⚠️ ERUPE GBE JU: Wun omi si oko ki o to fi takete/Urea si lati ma ba egbin je."
+        "action_yo": "🚨 EWU: WON OMI KIAKIA!",
+        "advisory_yo": "EWU NLA! Erupe gbe. Ti o ba pe lati wOn omi, egbin le ba je!",
+        "fert_yo": "⚠️ ERUPE GBE JU: Won omi si oko ki o to fi takete/Urea si lati ma ba egbin je."
     },
     "IRRIGATE_NOW": {
-        "action_yo": "🔵 WUN OMI NIOUN",
-        "advisory_yo": "Nkan gbigbe ti po ju. Wun omi daradara fun oko re.",
-        "fert_yo": "Erupe gbe die. Wun omi fuye ki o to fi takete si."
+        "action_yo": "🔵 WON OMI NISIN",
+        "advisory_yo": "Nkan gbigbe ti po ju. Won omi daadaa fun oko re.",
+        "fert_yo": "Erupe gbe die. Won omi die ki o to fi takete si."
     },
     "MOISTURE_SAFE": {
-        "action_yo": "🟢 OMI WA DARADARA",
-        "advisory_yo": "Omi ti to fun ipele idagbasoke egbin re. Ko buido wun omi sii.",
+        "action_yo": "🟢 OMI WA DAADAA",
+        "advisory_yo": "Omi ti to fun ipele idagbasoke egbin re. Ko gbudo won omi sii.",
         "fert_yo": "🟢 AKEJU OMI DA: Aaye wa lati fi takete si egbe egbin re ti o ba koo si asiko."
     }
 }
@@ -216,14 +216,14 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
     if 7 <= dap <= 14:
         if forecast_3day_rain >= 15.0:
             fert_en = "⚠️ HOLD OFF NPK: Heavy rain forecast. Fertilizer will wash away!"
-            fert_yo = "⚠️ DUMURA FUN NPK: Ojo nla nbo. Takete re le ba je lo ti o ba fi si loni!"
+            fert_yo = "⚠️ DURO FUN NPK: Ojo nla nbo. Takete re le ba je lo ti o ba fi si loni!"
         else:
             fert_en = "🧪 BASAL FERTILIZER WINDOW: Apply NPK 15-15-15 (1 bag/ha) near root zone."
-            fert_yo = "🧪 AKOKO TAKETE NPK: Wun NPK 15-15-15 si egbe egbin re ni eba ogbo."
+            fert_yo = "🧪 AKOKO TAKETE NPK: Won NPK 15-15-15 si egbe egbin re ni eba ogbo."
     elif 21 <= dap <= 30:
         if forecast_3day_rain >= 15.0:
             fert_en = "⚠️ HOLD OFF UREA: Heavy rain in 72h forecast. Fertilizer will wash away!"
-            fert_yo = "⚠️ DUMURA FUN UREA: Ojo nbo ni wakati 72. Fi takete Urea pamora nisisiyi."
+            fert_yo = "⚠️ DURO FUN UREA: Ojo nbo ni wakati méjíléláàdọ́rin. Fi takete Urea pamo bayii."
         elif consecutive_dry_days >= 4:
             fert_en = "⚠️ DRY SOIL: Pre-irrigate field before applying Urea to prevent root burn."
             fert_yo = "⚠️ ERUPE GBE: Won omi si oko ki o to fi Urea si lati ma ba egbin je."
@@ -233,7 +233,7 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
     elif 45 <= dap <= 55:
         if forecast_3day_rain >= 15.0:
             fert_en = "⚠️ HOLD OFF 2ND UREA: Rain expected in 72h. Hold off application."
-            fert_yo = "⚠️ DUMURA FUN UREA ELEKEJI: Ojo nbo ni wakati 72. Mura da duro."
+            fert_yo = "⚠️ DURO FUN UREA ELEKEJI: Ojo nbo ni wakati méjíléláàdọ́rin. Mura da duro."
         else:
             fert_en = "🧪 2ND TOP-DRESSING WINDOW: Apply Urea before flowering stage."
             fert_yo = "🧪 AKOKO UREA ELEKEJI: Won Urea keji ki egbin to bere si ru ewe/ododo."
