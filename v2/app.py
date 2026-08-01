@@ -21,14 +21,15 @@ st.set_page_config(
     layout="wide"
 )
 
-# 4. EBULKSMS API CONFIGURATION
+# 4. API CONFIGURATION
 try:
     EBULKSMS_USERNAME = st.secrets["EBULKSMS_USERNAME"]
     EBULKSMS_API_KEY = st.secrets["EBULKSMS_API_KEY"]
+    OPEN_METEO_API_KEY = st.secrets.get("OPEN_METEO_API_KEY", "")
 except Exception:
-    # Safe fallback pulling directly from secrets dictionary without throwing KeyError
     EBULKSMS_USERNAME = st.secrets.get("EBULKSMS_USERNAME", "")
     EBULKSMS_API_KEY = st.secrets.get("EBULKSMS_API_KEY", "")
+    OPEN_METEO_API_KEY = st.secrets.get("OPEN_METEO_API_KEY", "")
 
 st.title("🌾 AgriSense Kwara (v2 Engine)")
 st.subheader("Google Earth Engine & Open-Meteo Dynamic Advisory & SMS Dispatch System")
@@ -101,16 +102,23 @@ def calculate_irrigation_advisory(dap, consecutive_dry_days, forecast_3day_rain,
 
     return {"stage": stage, "status": status, "action": action, "advisory": advisory}
 
-# Fetch Live Weather from Open-Meteo REST API with Complete Failure Safeguards
+# Fetch Live Weather from Open-Meteo REST API with API Key Support
 @st.cache_data(ttl=3600, show_spinner=False)  # Cache results for 1 hour
 def fetch_live_weather(lat, lon):
+    # Route to customer-api domain if API key is present, otherwise fallback to standard free API
+    domain = "customer-api.open-meteo.com" if OPEN_METEO_API_KEY else "api.open-meteo.com"
+    
     url = (
-        f"https://api.open-meteo.com/v1/forecast?"
+        f"https://{domain}/v1/forecast?"
         f"latitude={lat}&longitude={lon}&"
         f"daily=precipitation_sum,temperature_2m_max,temperature_2m_min&"
         f"past_days=7&forecast_days=3&timezone=Africa%2FLagos"
     )
     
+    # Append API key query param if key exists
+    if OPEN_METEO_API_KEY:
+        url += f"&apikey={OPEN_METEO_API_KEY}"
+
     # Pre-calculated safe fallback data for Kwara State
     today = datetime.date.today()
     fallback_dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7, -1, -1)]
