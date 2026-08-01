@@ -27,8 +27,7 @@ try:
     EBULKSMS_API_KEY = st.secrets["EBULKSMS_API_KEY"]
 except Exception:
     # Fallback for local testing
-    EBULKSMS_USERNAME = "fausiyatmahmood@gmail.com"
-    EBULKSMS_API_KEY = "b4619b7c11b37261ed1858cccbf223362b8c0a9a20fa1e36425b3fc759764474"
+    
 
 st.title("🌾 AgriSense Kwara (v2 Engine)")
 st.subheader("Google Earth Engine & Open-Meteo Dynamic Advisory & SMS Dispatch System")
