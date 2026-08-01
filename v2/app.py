@@ -629,7 +629,8 @@ with tab2:
                                 raw_phone = str(row.get('Phone', '')).strip()
                                 soil = str(row.get('Soil_Type', 'Loam/Clay')).strip()
                                 farmer_lang = str(row.get('Language', 'Yoruba')).strip().title()
-                                payment_status = str(row.get('Payment_Status', 'PAID')).strip().upper()
+                                # Read Expiry Date (Defaults to 2026-10-02 for Pilot if missing)
+                                user_expiry = str(row.get('Subscription_Expiry', '2026-10-02')).strip()
 
                                 formatted_phone = format_nigerian_phone(raw_phone)
 
@@ -644,7 +645,7 @@ with tab2:
                                 yo_irrig = ADVISORY_TRANSLATIONS.get(status_key, ADVISORY_TRANSLATIONS["MOISTURE_SAFE"])
 
                                 # 2. SEGREGATE PAID VS UNPAID FARMERS
-                                if payment_status == "PAID":
+                                if is_subscription_active(user_expiry):
                                     if farmer_lang == "Yoruba":
                                         personalized_msg = (
                                             f"AgriSense({clean_lga}): Bawo {farmer_name}, "
@@ -662,12 +663,12 @@ with tab2:
                                     if farmer_lang == "Yoruba":
                                         personalized_msg = (
                                             f"AgriSense: Bawo {farmer_name}, akaunti re ti fe san owo. "
-                                            f"San N500 lati tesiwaju gbigba imoran oko re."
+                                            f"San N1000 lati tesiwaju gbigba imoran oko re."
                                         )[:160]
                                     else:
                                         personalized_msg = (
                                             f"AgriSense: Hi {farmer_name}, your subscription has expired. "
-                                            f"Pay N500 to continue receiving seasonal advisories."
+                                            f"Pay N100 to continue receiving seasonal advisories."
                                         )[:160]
 
                                 unique_msgid = f"batch_{clean_lga}_{dap}_{idx}"
@@ -676,13 +677,16 @@ with tab2:
                                     "msidn": formatted_phone,
                                     "msgid": unique_msgid
                                 })
+                                # Check status for logging
+                                active_status = "ACTIVE" if is_subscription_active(user_expiry) else "EXPIRED"
 
                                 lga_farmer_records.append({
                                     "Farmer Name": farmer_name,
                                     "Phone": formatted_phone,
                                     "LGA": clean_lga,
                                     "Language": farmer_lang,
-                                    "Payment Status": payment_status,
+                                    "Subscription Expiry": user_expiry,
+                                    "Account Status": active_status,
                                     "Crop Age (DAP)": dap,
                                     "Message Body": personalized_msg
                                 })
