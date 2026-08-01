@@ -32,7 +32,7 @@ except Exception:
     OPEN_METEO_API_KEY = st.secrets.get("OPEN_METEO_API_KEY", "")
 
 st.title("🌾 AgriSense Kwara (v2 Engine)")
-st.subheader("Google Earth Engine & Open-Meteo Dynamic Advisory & SMS Dispatch System")
+st.subheader("Real Time Climate & Maize Planting Advisory System")
 st.markdown("---")
 
 # Geographic Coordinates for Kwara State LGAs [Latitude, Longitude]
