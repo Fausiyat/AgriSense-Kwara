@@ -114,14 +114,23 @@ def fetch_live_weather(lat, lon):
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
             data = response.json()
-            daily = data['daily']
-            today_index = 7
-
-            raw_precip = [0.0 if p is None else p for p in daily['precipitation_sum']]
+            daily = data.get('daily', {})
             
-            today_rain = raw_precip[today_index]
-            temp_max = daily['temperature_2m_max'][today_index] or 25.0
-            temp_min = daily['temperature_2m_min'][today_index] or 20.0
+            precip = daily.get('precipitation_sum', [])
+            t_max_list = daily.get('temperature_2m_max', [])
+            t_min_list = daily.get('temperature_2m_min', [])
+
+            # Clean lists replacing None with safe defaults
+            raw_precip = [0.0 if p is None else float(p) for p in precip]
+            t_max = [28.0 if t is None else float(t) for t in t_max_list]
+            t_min = [22.0 if t is None else float(t) for t in t_min_list]
+
+            # Use last available past day index safely
+            today_index = min(7, len(raw_precip) - 1) if len(raw_precip) > 0 else 0
+
+            today_rain = raw_precip[today_index] if today_index < len(raw_precip) else 0.0
+            temp_max = t_max[today_index] if today_index < len(t_max) else 28.0
+            temp_min = t_min[today_index] if today_index < len(t_min) else 22.0
 
             past_7day_rain = sum(raw_precip[:today_index])
             forecast_3day_rain = sum(raw_precip[today_index+1:today_index+4])
@@ -133,17 +142,22 @@ def fetch_live_weather(lat, lon):
                 else: 
                     break
 
+            dates = daily.get('time', [])[:today_index+1]
+            rain_hist = raw_precip[:today_index+1]
+
             return {
-                "today_rain": today_rain,
+                "today_rain": round(today_rain, 1),
                 "temp_avg": round((temp_max + temp_min) / 2, 1),
                 "past_7day_rain": round(past_7day_rain, 1),
                 "forecast_3day_rain": round(forecast_3day_rain, 1),
                 "consecutive_dry_days": dry_days,
-                "dates": daily['time'][:today_index+1],
-                "rain_history": raw_precip[:today_index+1]
+                "dates": dates,
+                "rain_history": rain_hist
             }
+        else:
+            st.error(f"Open-Meteo API Error Code: {response.status_code}")
     except Exception as e:
-        st.error(f"Error fetching live weather: {e}")
+        st.error(f"Weather Fetch Exception: {e}")
     return None
 
 # Load Upgraded Model v2 dynamically
