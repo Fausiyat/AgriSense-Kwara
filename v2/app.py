@@ -144,6 +144,7 @@ def is_subscription_active(expiry_date_str):
     except Exception:
         # If no valid date or formatting error, treat as unpaid for safety
         return False
+        
 # Helper: Growing Degree Days (GDD)
 def calculate_gdd(temp):
     base_temp, cap_temp = 10.0, 30.0
