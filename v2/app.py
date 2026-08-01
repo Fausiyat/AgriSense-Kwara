@@ -131,6 +131,19 @@ def format_nigerian_phone(raw_phone):
     else:
         return "234" + phone_clean
 
+# Helper: Monthly Subscription Expiry Checker
+def is_subscription_active(expiry_date_str):
+    """
+    Checks if a farmer's monthly/seasonal subscription date is still valid.
+    Expects date string in 'YYYY-MM-DD' format.
+    """
+    try:
+        expiry_date = datetime.datetime.strptime(str(expiry_date_str).strip(), "%Y-%m-%d").date()
+        today = datetime.date.today()
+        return today <= expiry_date
+    except Exception:
+        # If no valid date or formatting error, treat as unpaid for safety
+        return False
 # Helper: Growing Degree Days (GDD)
 def calculate_gdd(temp):
     base_temp, cap_temp = 10.0, 30.0
@@ -383,8 +396,8 @@ with tab1:
     if is_paid_user:
         st.success("🟢 Account Status: Active Subscriber / Akaunti Re Wa Ni Alafia")
     else:
-        st.warning("🔴 Account Status: Unpaid / Akaunti Re Ti Fe San Owo (₦500/Season)")
-        st.info("💡 Pay ₦500 seasonal subscription to unlock ML planting forecasts & irrigation alerts.")
+        st.warning("🔴 Account Status: Unpaid / Akaunti Re Ti Fe San Owo")
+        st.info("💡 Pay seasonal subscription to unlock ML planting forecasts & irrigation alerts.")
 
     st.markdown("---")
 
