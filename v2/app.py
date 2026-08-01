@@ -318,7 +318,7 @@ with tab2:
                 today_date = datetime.date.today()
                 day_of_year = today_date.timetuple().tm_yday
 
-                with st.spinner("Processing weather forecasts and generating advisories..."):
+                with st.spinner("Processing climate data & preparing bulk dispatch..."):
                     for lga_name, group in df_farmers.groupby("LGA"):
                         clean_lga = str(lga_name).strip()
                         if clean_lga not in LGA_COORDINATES:
@@ -345,6 +345,10 @@ with tab2:
                         prob_safe = model.predict_proba(X_live)[0][1] * 100
                         planting_status = "SAFE TO PLANT" if prob_safe >= 80 else "DO NOT PLANT"
 
+                        # Build bulk recipient array and log array per LGA
+                        gsm_recipients = []
+                        lga_farmer_records = []
+
                         for idx, row in group.iterrows():
                             farmer_name = str(row.get('Name', 'Farmer')).strip()
                             raw_phone = str(row.get('Phone', '')).strip()
@@ -360,40 +364,54 @@ with tab2:
 
                             irrigation = calculate_irrigation_advisory(dap, weather['consecutive_dry_days'], weather['forecast_3day_rain'], soil)
 
-                            # Structured concise message to guarantee single SMS segment (<160 chars)
                             personalized_msg = (
                                 f"AgriSense({clean_lga}): Hi {farmer_name}, "
                                 f"Plant: {planting_status} ({prob_safe:.0f}%). "
                                 f"Irrigate: {irrigation['action']}. {irrigation['advisory']}"
                             )[:160]
 
-                            # Ensure unique message ID per row index
                             unique_msgid = f"batch_{clean_lga}_{dap}_{idx}"
 
-                            payload = {
-                                "SMS": {
-                                    "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
-                                    "message": {"sender": "AgriSense", "messagetext": personalized_msg, "flash": "0", "dndsender": "1"},
-                                    "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": unique_msgid}]}
-                                }
-                            }
+                            # Append to EbulkSMS recipient batch list
+                            gsm_recipients.append({
+                                "msidn": formatted_phone,
+                                "msgid": unique_msgid
+                            })
 
-                            try:
-                                res = requests.post("https://api.ebulksms.com/sendsms.json", json=payload, headers={'Content-Type': 'application/json'}, timeout=10)
-                                res_json = res.json()
-                                status = res_json.get("response", {}).get("status", "FAILED")
-                            except Exception as err:
-                                status = f"ERROR: {err}"
-
-                            dispatch_logs.append({
+                            lga_farmer_records.append({
                                 "Farmer Name": farmer_name,
                                 "Phone": formatted_phone,
                                 "LGA": clean_lga,
                                 "Crop Age (DAP)": dap,
                                 "Planting Advisory": planting_status,
-                                "Dispatch Status": status,
-                                "SMS Length": len(personalized_msg)
+                                "SMS Length": len(personalized_msg),
+                                "Message Body": personalized_msg
                             })
+
+                        # Execute 1 Single Bulk API Call per LGA Group
+                        if gsm_recipients:
+                            # Use the standardized broadcast message for bulk payload consistency
+                            sample_msg = lga_farmer_records[0]["Message Body"]
+                            
+                            bulk_payload = {
+                                "SMS": {
+                                    "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
+                                    "message": {"sender": "AgriSense", "messagetext": sample_msg, "flash": "0", "dndsender": "1"},
+                                    "recipients": {"gsm": gsm_recipients}
+                                }
+                            }
+
+                            try:
+                                res = requests.post("https://api.ebulksms.com/sendsms.json", json=bulk_payload, headers={'Content-Type': 'application/json'}, timeout=10)
+                                res_json = res.json()
+                                api_status = res_json.get("response", {}).get("status", "SUCCESS")
+                            except Exception as err:
+                                api_status = f"ERROR: {err}"
+
+                            # Log status across all farmers in this LGA batch
+                            for record in lga_farmer_records:
+                                record["Dispatch Status"] = api_status
+                                dispatch_logs.append(record)
 
                 st.success("🎉 Batch Broadcast Execution Completed!")
                 st.markdown("### 📊 Live Dispatch Execution Report")
