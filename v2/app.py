@@ -101,7 +101,7 @@ def calculate_irrigation_advisory(dap, consecutive_dry_days, forecast_3day_rain,
 
     return {"stage": stage, "status": status, "action": action, "advisory": advisory}
 
-# Fetch Live Weather from Open-Meteo REST API with Rate Limit (429) Handling
+# Fetch Live Weather from Open-Meteo REST API with Complete Failure Safeguards
 @st.cache_data(ttl=3600, show_spinner=False)  # Cache results for 1 hour
 def fetch_live_weather(lat, lon):
     url = (
@@ -110,28 +110,24 @@ def fetch_live_weather(lat, lon):
         f"daily=precipitation_sum,temperature_2m_max,temperature_2m_min&"
         f"past_days=7&forecast_days=3&timezone=Africa%2FLagos"
     )
+    
+    # Pre-calculated safe fallback data for Kwara State
+    today = datetime.date.today()
+    fallback_dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7, -1, -1)]
+    fallback_data = {
+        "today_rain": 2.5,
+        "temp_avg": 26.5,
+        "past_7day_rain": 18.0,
+        "forecast_3day_rain": 12.0,
+        "consecutive_dry_days": 1,
+        "dates": fallback_dates,
+        "rain_history": [1.0, 0.0, 4.2, 0.0, 2.1, 8.2, 0.0, 2.5]
+    }
+
     try:
         response = requests.get(url, timeout=10)
         
-        # Handle 429 Rate Limit Specifically
-        if response.status_code == 429:
-            st.warning("⚠️ Weather API Rate Limited (HTTP 429). Loading cached/fallback climate parameters...")
-            
-            # Safely generate past 8 dates using datetime.date
-            today = datetime.date.today()
-            past_dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7, -1, -1)]
-            
-            # Return realistic fallback data for Kwara State so the app doesn't break
-            return {
-                "today_rain": 2.5,
-                "temp_avg": 26.5,
-                "past_7day_rain": 18.0,
-                "forecast_3day_rain": 12.0,
-                "consecutive_dry_days": 1,
-                "dates": past_dates,
-                "rain_history": [1.0, 0.0, 4.2, 0.0, 2.1, 8.2, 0.0, 2.5]
-            }
-            
+        # Handle HTTP 200 Success
         if response.status_code == 200:
             data = response.json()
             daily = data.get('daily', {})
@@ -169,10 +165,15 @@ def fetch_live_weather(lat, lon):
                 "dates": daily.get('time', [])[:today_index+1],
                 "rain_history": raw_precip[:today_index+1]
             }
+        
+        # Display warning for non-200 responses (429, 500, 503, etc.)
+        st.warning(f"⚠️ Weather API Status {response.status_code}. Loading local climate fallback parameters...")
+        return fallback_data
+
     except Exception as e:
-        st.error(f"Weather Fetch Exception: {e}")
-    return None
-    
+        st.warning(f"⚠️ Weather connection error: {e}. Loading local climate fallback parameters...")
+        return fallback_data
+        
 # Load Upgraded Model v2 dynamically
 @st.cache_resource
 def load_agrisense_model():
