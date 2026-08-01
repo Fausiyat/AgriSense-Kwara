@@ -173,7 +173,7 @@ def fetch_live_weather(lat, lon):
     except Exception as e:
         st.warning(f"⚠️ Weather connection error: {e}. Loading local climate fallback parameters...")
         return fallback_data
-        
+
 # Load Upgraded Model v2 dynamically
 @st.cache_resource
 def load_agrisense_model():
@@ -390,7 +390,6 @@ with tab2:
 
                         # Execute 1 Single Bulk API Call per LGA Group
                         if gsm_recipients:
-                            # Use the standardized broadcast message for bulk payload consistency
                             sample_msg = lga_farmer_records[0]["Message Body"]
                             
                             bulk_payload = {
