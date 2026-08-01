@@ -101,7 +101,6 @@ def calculate_irrigation_advisory(dap, consecutive_dry_days, forecast_3day_rain,
 
     return {"stage": stage, "status": status, "action": action, "advisory": advisory}
 
-# Fetch Live Weather from Open-Meteo REST API
 # Fetch Live Weather from Open-Meteo REST API with Rate Limit (429) Handling
 @st.cache_data(ttl=3600, show_spinner=False)  # Cache results for 1 hour
 def fetch_live_weather(lat, lon):
@@ -117,6 +116,11 @@ def fetch_live_weather(lat, lon):
         # Handle 429 Rate Limit Specifically
         if response.status_code == 429:
             st.warning("⚠️ Weather API Rate Limited (HTTP 429). Loading cached/fallback climate parameters...")
+            
+            # Safely generate past 8 dates using datetime.date
+            today = datetime.date.today()
+            past_dates = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7, -1, -1)]
+            
             # Return realistic fallback data for Kwara State so the app doesn't break
             return {
                 "today_rain": 2.5,
@@ -124,7 +128,7 @@ def fetch_live_weather(lat, lon):
                 "past_7day_rain": 18.0,
                 "forecast_3day_rain": 12.0,
                 "consecutive_dry_days": 1,
-                "dates": [(datetime.date.today() - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7, -1, -1)],
+                "dates": past_dates,
                 "rain_history": [1.0, 0.0, 4.2, 0.0, 2.1, 8.2, 0.0, 2.5]
             }
             
@@ -168,7 +172,7 @@ def fetch_live_weather(lat, lon):
     except Exception as e:
         st.error(f"Weather Fetch Exception: {e}")
     return None
-
+    
 # Load Upgraded Model v2 dynamically
 @st.cache_resource
 def load_agrisense_model():
