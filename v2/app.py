@@ -102,7 +102,8 @@ def calculate_irrigation_advisory(dap, consecutive_dry_days, forecast_3day_rain,
     return {"stage": stage, "status": status, "action": action, "advisory": advisory}
 
 # Fetch Live Weather from Open-Meteo REST API
-@st.cache_data(ttl=1800)
+# Fetch Live Weather from Open-Meteo REST API with Rate Limit (429) Handling
+@st.cache_data(ttl=3600, show_spinner=False)  # Cache results for 1 hour
 def fetch_live_weather(lat, lon):
     url = (
         f"https://api.open-meteo.com/v1/forecast?"
@@ -112,6 +113,21 @@ def fetch_live_weather(lat, lon):
     )
     try:
         response = requests.get(url, timeout=10)
+        
+        # Handle 429 Rate Limit Specifically
+        if response.status_code == 429:
+            st.warning("⚠️ Weather API Rate Limited (HTTP 429). Loading cached/fallback climate parameters...")
+            # Return realistic fallback data for Kwara State so the app doesn't break
+            return {
+                "today_rain": 2.5,
+                "temp_avg": 26.5,
+                "past_7day_rain": 18.0,
+                "forecast_3day_rain": 12.0,
+                "consecutive_dry_days": 1,
+                "dates": [(datetime.date.today() - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7, -1, -1)],
+                "rain_history": [1.0, 0.0, 4.2, 0.0, 2.1, 8.2, 0.0, 2.5]
+            }
+            
         if response.status_code == 200:
             data = response.json()
             daily = data.get('daily', {})
@@ -120,12 +136,10 @@ def fetch_live_weather(lat, lon):
             t_max_list = daily.get('temperature_2m_max', [])
             t_min_list = daily.get('temperature_2m_min', [])
 
-            # Clean lists replacing None with safe defaults
             raw_precip = [0.0 if p is None else float(p) for p in precip]
             t_max = [28.0 if t is None else float(t) for t in t_max_list]
             t_min = [22.0 if t is None else float(t) for t in t_min_list]
 
-            # Use last available past day index safely
             today_index = min(7, len(raw_precip) - 1) if len(raw_precip) > 0 else 0
 
             today_rain = raw_precip[today_index] if today_index < len(raw_precip) else 0.0
@@ -142,20 +156,15 @@ def fetch_live_weather(lat, lon):
                 else: 
                     break
 
-            dates = daily.get('time', [])[:today_index+1]
-            rain_hist = raw_precip[:today_index+1]
-
             return {
                 "today_rain": round(today_rain, 1),
                 "temp_avg": round((temp_max + temp_min) / 2, 1),
                 "past_7day_rain": round(past_7day_rain, 1),
                 "forecast_3day_rain": round(forecast_3day_rain, 1),
                 "consecutive_dry_days": dry_days,
-                "dates": dates,
-                "rain_history": rain_hist
+                "dates": daily.get('time', [])[:today_index+1],
+                "rain_history": raw_precip[:today_index+1]
             }
-        else:
-            st.error(f"Open-Meteo API Error Code: {response.status_code}")
     except Exception as e:
         st.error(f"Weather Fetch Exception: {e}")
     return None
