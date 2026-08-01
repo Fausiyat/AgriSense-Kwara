@@ -357,8 +357,19 @@ with tab1:
     # Simple Access Check (For pilot, we verify against loaded roster or allow active status)
     formatted_login = format_nigerian_phone(user_input_phone)
     
-    # Check if roster dataframe exists in memory from Tab 2 upload or treat active for testing
-    is_paid_user = True  # Set to True by default for owner/admin testing
+    # Check if roster dataframe exists in memory from Tab 2 upload
+    is_paid_user = False # Default to locked/unpaid for unverified numbers
+    
+    # List of Admin/Tester phone numbers allowed for demo
+    ALLOWED_ADMIN_NUMBERS = ["08143086509", "2348143086509"]
+
+    if formatted_login in ALLOWED_ADMIN_NUMBERS or formatted_login[-10:] in [p[-10:] for p in ALLOWED_ADMIN_NUMBERS]:
+        is_paid_user = True
+    elif 'df_farmers' in locals() and df_farmers is not None and not df_farmers.empty:
+        matched_user = df_farmers[df_farmers['Phone'].astype(str).str.contains(formatted_login[-10:])]
+        if not matched_user.empty:
+            p_status = str(matched_user.iloc[0].get('Payment_Status', 'UNPAID')).upper()
+            is_paid_user = (p_status == "PAID")
     
     # Optional Roster Lookup logic (if df_farmers exists)
     if 'df_farmers' in locals() and df_farmers is not None and not df_farmers.empty:
