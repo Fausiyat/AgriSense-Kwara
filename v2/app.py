@@ -26,8 +26,9 @@ try:
     EBULKSMS_USERNAME = st.secrets["EBULKSMS_USERNAME"]
     EBULKSMS_API_KEY = st.secrets["EBULKSMS_API_KEY"]
 except Exception:
-    # Fallback for local testing
-    
+    # Safe fallback pulling directly from secrets dictionary without throwing KeyError
+    EBULKSMS_USERNAME = st.secrets.get("EBULKSMS_USERNAME", "")
+    EBULKSMS_API_KEY = st.secrets.get("EBULKSMS_API_KEY", "")
 
 st.title("🌾 AgriSense Kwara (v2 Engine)")
 st.subheader("Google Earth Engine & Open-Meteo Dynamic Advisory & SMS Dispatch System")
@@ -116,7 +117,6 @@ def fetch_live_weather(lat, lon):
             daily = data['daily']
             today_index = 7
 
-            # Extract raw metrics with fallback for nulls
             raw_precip = [0.0 if p is None else p for p in daily['precipitation_sum']]
             
             today_rain = raw_precip[today_index]
@@ -243,7 +243,6 @@ with tab1:
         st.markdown("---")
         st.markdown("### 📱 Test Single SMS Broadcast")
 
-        # Concise default SMS body tailored for pilot execution
         default_single_msg = (
             f"AgriSense({selected_lga}): {planting_advisory} "
             f"Irrigation: {irrigation_res['action']}. {irrigation_res['advisory']}"
@@ -251,7 +250,6 @@ with tab1:
         
         single_msg = st.text_area("SMS Content:", default_single_msg, height=100)
         
-        # Character & SMS Segment Counter Logic
         msg_len = len(single_msg)
         segments = (msg_len // 160) + 1
         if msg_len <= 160:
@@ -262,12 +260,13 @@ with tab1:
         test_phone = st.text_input("Enter Phone Number:", "08143086509")
         if st.button("🚀 Send Single Test SMS"):
             formatted_phone = format_nigerian_phone(test_phone)
+            unique_id = f"single_{selected_lga}_{dap}_{int(datetime.datetime.now().timestamp())}"
 
             payload = {
                 "SMS": {
                     "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
                     "message": {"sender": "AgriSense", "messagetext": single_msg, "flash": "0", "dndsender": "1"},
-                    "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": f"single_{selected_lga}_{dap}"}]}
+                    "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": unique_id}]}
                 }
             }
             res = requests.post("https://api.ebulksms.com/sendsms.json", json=payload, headers={'Content-Type': 'application/json'}, timeout=10)
@@ -275,7 +274,7 @@ with tab1:
 
 # --- TAB 2: MULTI-FARMER BATCH SMS DISPATCHER ---
 with tab2:
-    st.markdown("### 📋 Upload Recipient Roster (20 Farmers Pilot)")
+    st.markdown("### 📋 Upload Recipient Roster (50 Farmers Target)")
     uploaded_file = st.file_uploader("Upload Farmers File (.xlsx or .csv)", type=["xlsx", "csv"])
 
     if uploaded_file:
@@ -291,77 +290,82 @@ with tab2:
                 today_date = datetime.date.today()
                 day_of_year = today_date.timetuple().tm_yday
 
-                for lga_name, group in df_farmers.groupby("LGA"):
-                    clean_lga = str(lga_name).strip()
-                    if clean_lga not in LGA_COORDINATES:
-                        st.warning(f"LGA '{clean_lga}' coordinates not configured. Skipping {len(group)} farmer(s).")
-                        continue
+                with st.spinner("Processing weather forecasts and generating advisories..."):
+                    for lga_name, group in df_farmers.groupby("LGA"):
+                        clean_lga = str(lga_name).strip()
+                        if clean_lga not in LGA_COORDINATES:
+                            st.warning(f"LGA '{clean_lga}' coordinates not configured. Skipping {len(group)} farmer(s).")
+                            continue
 
-                    coords = LGA_COORDINATES[clean_lga]
-                    weather = fetch_live_weather(coords["lat"], coords["lon"])
-                    if not weather:
-                        continue
+                        coords = LGA_COORDINATES[clean_lga]
+                        weather = fetch_live_weather(coords["lat"], coords["lon"])
+                        if not weather:
+                            st.error(f"Failed to fetch weather data for {clean_lga}. Skipping group.")
+                            continue
 
-                    gdd = calculate_gdd(weather['temp_avg'])
-                    X_live = pd.DataFrame([[
-                        weather['today_rain'],
-                        weather['temp_avg'],
-                        gdd,
-                        weather['past_7day_rain'],
-                        weather['consecutive_dry_days'],
-                        weather['forecast_3day_rain'],
-                        day_of_year
-                    ]], columns=['rainfall_mm', 'temp_celsius', 'gdd', 'rain_7day_sum', 'consecutive_dry_days', 'forecast_3day_rain', 'day_of_year'])
+                        gdd = calculate_gdd(weather['temp_avg'])
+                        X_live = pd.DataFrame([[
+                            weather['today_rain'],
+                            weather['temp_avg'],
+                            gdd,
+                            weather['past_7day_rain'],
+                            weather['consecutive_dry_days'],
+                            weather['forecast_3day_rain'],
+                            day_of_year
+                        ]], columns=['rainfall_mm', 'temp_celsius', 'gdd', 'rain_7day_sum', 'consecutive_dry_days', 'forecast_3day_rain', 'day_of_year'])
 
-                    prob_safe = model.predict_proba(X_live)[0][1] * 100
-                    planting_status = "SAFE TO PLANT" if prob_safe >= 80 else "DO NOT PLANT"
+                        prob_safe = model.predict_proba(X_live)[0][1] * 100
+                        planting_status = "SAFE TO PLANT" if prob_safe >= 80 else "DO NOT PLANT"
 
-                    for _, row in group.iterrows():
-                        farmer_name = str(row.get('Name', 'Farmer')).strip()
-                        raw_phone = str(row.get('Phone', '')).strip()
-                        soil = str(row.get('Soil_Type', 'Loam/Clay')).strip()
+                        for idx, row in group.iterrows():
+                            farmer_name = str(row.get('Name', 'Farmer')).strip()
+                            raw_phone = str(row.get('Phone', '')).strip()
+                            soil = str(row.get('Soil_Type', 'Loam/Clay')).strip()
 
-                        formatted_phone = format_nigerian_phone(raw_phone)
+                            formatted_phone = format_nigerian_phone(raw_phone)
 
-                        try:
-                            p_date = pd.to_datetime(row['Planting_Date']).date()
-                            dap = max(0, (today_date - p_date).days)
-                        except Exception:
-                            dap = 0
+                            try:
+                                p_date = pd.to_datetime(row['Planting_Date']).date()
+                                dap = max(0, (today_date - p_date).days)
+                            except Exception:
+                                dap = 0
 
-                        irrigation = calculate_irrigation_advisory(dap, weather['consecutive_dry_days'], weather['forecast_3day_rain'], soil)
+                            irrigation = calculate_irrigation_advisory(dap, weather['consecutive_dry_days'], weather['forecast_3day_rain'], soil)
 
-                        # Compact batch message (~160 chars)
-                        personalized_msg = (
-                            f"AgriSense({clean_lga}): Hi {farmer_name}, "
-                            f"Planting: {planting_status} ({prob_safe:.0f}%). "
-                            f"Irrigation: {irrigation['action']}. {irrigation['advisory']}"
-                        )
+                            # Structured concise message to guarantee single SMS segment (<160 chars)
+                            personalized_msg = (
+                                f"AgriSense({clean_lga}): Hi {farmer_name}, "
+                                f"Plant: {planting_status} ({prob_safe:.0f}%). "
+                                f"Irrigate: {irrigation['action']}. {irrigation['advisory']}"
+                            )[:160]
 
-                        payload = {
-                            "SMS": {
-                                "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
-                                "message": {"sender": "AgriSense", "messagetext": personalized_msg, "flash": "0", "dndsender": "1"},
-                                "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": f"batch_{clean_lga}_{dap}"}]}
+                            # Ensure unique message ID per row index
+                            unique_msgid = f"batch_{clean_lga}_{dap}_{idx}"
+
+                            payload = {
+                                "SMS": {
+                                    "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
+                                    "message": {"sender": "AgriSense", "messagetext": personalized_msg, "flash": "0", "dndsender": "1"},
+                                    "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": unique_msgid}]}
+                                }
                             }
-                        }
 
-                        try:
-                            res = requests.post("https://api.ebulksms.com/sendsms.json", json=payload, headers={'Content-Type': 'application/json'}, timeout=10)
-                            res_json = res.json()
-                            status = res_json.get("response", {}).get("status", "FAILED")
-                        except Exception as err:
-                            status = f"ERROR: {err}"
+                            try:
+                                res = requests.post("https://api.ebulksms.com/sendsms.json", json=payload, headers={'Content-Type': 'application/json'}, timeout=10)
+                                res_json = res.json()
+                                status = res_json.get("response", {}).get("status", "FAILED")
+                            except Exception as err:
+                                status = f"ERROR: {err}"
 
-                        dispatch_logs.append({
-                            "Farmer Name": farmer_name,
-                            "Phone": formatted_phone,
-                            "LGA": clean_lga,
-                            "Crop Age (DAP)": dap,
-                            "Planting Advisory": planting_status,
-                            "Dispatch Status": status,
-                            "SMS Length": len(personalized_msg)
-                        })
+                            dispatch_logs.append({
+                                "Farmer Name": farmer_name,
+                                "Phone": formatted_phone,
+                                "LGA": clean_lga,
+                                "Crop Age (DAP)": dap,
+                                "Planting Advisory": planting_status,
+                                "Dispatch Status": status,
+                                "SMS Length": len(personalized_msg)
+                            })
 
                 st.success("🎉 Batch Broadcast Execution Completed!")
                 st.markdown("### 📊 Live Dispatch Execution Report")
