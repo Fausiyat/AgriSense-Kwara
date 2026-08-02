@@ -175,9 +175,8 @@ def verify_paystack_transaction(reference_code):
         st.error(f"Payment verification error: {e}")
     return False, None
 
-# Smart Stage-Based SMS Builder (Phase-Focused & Concise)
 def build_smart_sms(farmer_name, lga, dap, prob_safe, crop_res, lang="English"):
-    # PHASE 1: PLANTING PHASE (DAP == 0)
+    # 1. PLANTING PHASE (DAP == 0)
     if dap == 0:
         if lang == "Yoruba":
             status = "O DARA LATI GBIN" if prob_safe >= 80 else "E MURA DA GBIGBIN DURO"
@@ -186,15 +185,28 @@ def build_smart_sms(farmer_name, lga, dap, prob_safe, crop_res, lang="English"):
             status = "SAFE TO PLANT" if prob_safe >= 80 else "DO NOT PLANT"
             return f"AgriSense({lga}): Hi {farmer_name}, Planting Status: {status} ({prob_safe:.0f}% confidence)."[:160]
 
-    # PHASE 2: GROWING PHASE (DAP > 0): Send ONLY the priority actionable task today
+    # 2. GROWING PHASE (DAP > 0)
     status_key = crop_res.get("status", "MOISTURE_SAFE")
     yo_irrig = ADVISORY_TRANSLATIONS.get(status_key, ADVISORY_TRANSLATIONS["MOISTURE_SAFE"])
     
     fert_active = "No scheduled" not in crop_res["fert_en"] and "Ko si takete" not in crop_res["fert_yo"]
     irrig_urgent = status_key in ["EMERGENCY_IRRIGATE", "IRRIGATE_NOW", "WAIT_FOR_RAIN"]
 
-    # Priority A: Urgent Irrigation Warning
-    if irrig_urgent:
+    # SCENARIO 1: BOTH IRRIGATION AND FERTILIZER ARE NEEDED TODAY
+    if irrig_urgent and fert_active:
+        if lang == "Yoruba":
+            return (
+                f"AgriSense({lga}): Bawo {farmer_name} (Ojo {dap}), ⚠️ ERUPE GBE! "
+                f"Won omi si oko ti o ba fi takete/Urea si loni lati ma ba egbin je."
+            )[:160]
+        else:
+            return (
+                f"AgriSense({lga}): Hi {farmer_name} (Day {dap}), ⚠️ DRY SOIL & FERTILIZER! "
+                f"Irrigate field first BEFORE applying Urea/NPK today."
+            )[:160]
+
+    # SCENARIO 2: ONLY URGENT IRRIGATION NEEDED
+    elif irrig_urgent:
         if lang == "Yoruba":
             action = yo_irrig['action_yo']
             return f"AgriSense({lga}): Bawo {farmer_name} (Ojo {dap}), {action}. Wo oko re ti o ba fe won omi."[:160]
@@ -202,7 +214,7 @@ def build_smart_sms(farmer_name, lga, dap, prob_safe, crop_res, lang="English"):
             action = crop_res['action']
             return f"AgriSense({lga}): Hi {farmer_name} (Day {dap}), {action}. Check field status."[:160]
 
-    # Priority B: Active Fertilizer Window
+    # SCENARIO 3: ONLY FERTILIZER WINDOW ACTIVE
     elif fert_active:
         if lang == "Yoruba":
             msg_fert = crop_res['fert_yo']
@@ -211,13 +223,12 @@ def build_smart_sms(farmer_name, lga, dap, prob_safe, crop_res, lang="English"):
             msg_fert = crop_res['fert_en']
             return f"AgriSense({lga}): Hi {farmer_name} (Day {dap}), {msg_fert}"[:160]
 
-    # Priority C: Routine Status Check-in (All Good)
+    # SCENARIO 4: ROUTINE CHECK-IN (EVERYTHING OPTIMAL)
     else:
         if lang == "Yoruba":
             return f"AgriSense({lga}): Bawo {farmer_name} (Ojo {dap}), Oko re wa ni alafia. Omi atiwon takete ko gbodogbo loni."[:160]
         else:
             return f"AgriSense({lga}): Hi {farmer_name} (Day {dap}), Crop status optimal. No irrigation or fertilizer needed today."[:160]
-
 # Upgraded Combined Irrigation & Fertilizer Advisory Engine
 def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_type="Loam/Clay", land_size=1.0, land_unit="Hectares"):
     dry_limit_factor = 0.6 if str(soil_type).lower() == "sandy" else 1.0
@@ -649,120 +660,177 @@ with tab2:
             st.markdown("#### Farmer Roster Preview")
             st.dataframe(df_farmers.head(10))
 
-            if st.button("🚀 Execute Daily LGA Batch Broadcast"):
-                if model is None:
-                    st.error("Cannot run prediction: Model `agrisense_kwara_model_v2.pkl` is missing.")
-                else:
-                    dispatch_logs = []
-                    today_date = datetime.date.today()
-                    day_of_year = today_date.timetuple().tm_yday
+            st.markdown("---")
+            st.markdown("### ⚙️ Select Broadcast Mode")
+            
+            # Select Broadcast Type: Routine Advisory vs Initial Pilot Onboarding
+            broadcast_type = st.radio(
+                "Choose Message Type / Yan Iru Ase SMS:",
+                ["🌾 Daily Climate & Crop Advisory", "🎉 Pilot Welcome & Onboarding Message"],
+                horizontal=True,
+                key="admin_broadcast_mode"
+            )
 
-                    with st.spinner("Processing climate data & preparing personalized bulk dispatches..."):
-                        for lga_name, group in df_farmers.groupby("LGA"):
-                            clean_lga = str(lga_name).strip()
-                            if clean_lga not in LGA_COORDINATES:
-                                st.warning(f"LGA '{clean_lga}' coordinates not configured. Skipping {len(group)} farmer(s).")
-                                continue
+            if st.button("🚀 Execute LGA Batch Broadcast"):
+                dispatch_logs = []
+                today_date = datetime.date.today()
+                day_of_year = today_date.timetuple().tm_yday
 
-                            coords = LGA_COORDINATES[clean_lga]
-                            weather = fetch_live_weather(coords["lat"], coords["lon"])
-                            if not weather:
-                                st.error(f"Failed to fetch weather data for {clean_lga}. Skipping group.")
-                                continue
+                with st.spinner("Processing bulk dispatches..."):
+                    
+                    # MODE A: ONBOARDING WELCOME SMS (ONE-CLICK FOR ALL FARMERS)
+                    if broadcast_type == "🎉 Pilot Welcome & Onboarding Message":
+                        for idx, row in df_farmers.iterrows():
+                            farmer_name = str(row.get('Name', 'Farmer')).strip()
+                            raw_phone = str(row.get('Phone', '')).strip()
+                            farmer_lang = str(row.get('Language', 'Yoruba')).strip().title()
+                            formatted_phone = format_nigerian_phone(raw_phone)
 
-                            gdd = calculate_gdd(weather['temp_avg'])
-                            X_live = pd.DataFrame([[
-                                weather['today_rain'],
-                                weather['temp_avg'],
-                                gdd,
-                                weather['past_7day_rain'],
-                                weather['consecutive_dry_days'],
-                                weather['forecast_3day_rain'],
-                                day_of_year
-                            ]], columns=['rainfall_mm', 'temp_celsius', 'gdd', 'rain_7day_sum', 'consecutive_dry_days', 'forecast_3day_rain', 'day_of_year'])
+                            # Construct Language-Specific Onboarding Text
+                            if farmer_lang == "Yoruba":
+                                personalized_msg = (
+                                    f"AgriSense: E kabo {farmer_name}! A ti fi oruko re si eto wa fun osu meji ti o fe (FREE). "
+                                    f"Wao ma gba imoran oko lori SMS. Support: 08143086509."
+                                )[:160]
+                            else:
+                                personalized_msg = (
+                                    f"AgriSense: Welcome {farmer_name}! You have been activated for a 2-month FREE pilot. "
+                                    f"You will receive regular farm SMS advisories. Help: 08143086509."
+                                )[:160]
 
-                            prob_safe = model.predict_proba(X_live)[0][1] * 100
+                            unique_msgid = f"welcome_{idx}_{int(datetime.datetime.now().timestamp())}"
 
-                            for idx, row in group.iterrows():
-                                farmer_name = str(row.get('Name', 'Farmer')).strip()
-                                raw_phone = str(row.get('Phone', '')).strip()
-                                soil = str(row.get('Soil_Type', 'Loam/Clay')).strip()
-                                farmer_lang = str(row.get('Language', 'Yoruba')).strip().title()
-                                p_status = str(row.get('Payment_Status', 'PAID')).strip().upper()
-                                user_expiry = str(row.get('Subscription_Expiry', '2026-10-02')).strip()
-                                farmer_land = float(row.get('Land_Size', 1.0))
-                                farmer_unit = str(row.get('Land_Unit', 'Hectares')).strip().title()
-
-                                formatted_phone = format_nigerian_phone(raw_phone)
-
-                                try:
-                                    p_date = pd.to_datetime(row['Planting_Date']).date()
-                                    dap = max(0, (today_date - p_date).days)
-                                except Exception:
-                                    dap = 0
-
-                                crop_res = calculate_crop_advisory(
-                                    dap, 
-                                    weather['consecutive_dry_days'], 
-                                    weather['forecast_3day_rain'], 
-                                    soil, 
-                                    land_size=farmer_land,
-                                    land_unit=farmer_unit
-                                )
-
-                                active_account = (p_status == "PAID") and is_subscription_active(user_expiry)
-
-                                # Generate clean, phase-focused message body
-                                if active_account:
-                                    personalized_msg = build_smart_sms(
-                                        farmer_name, clean_lga, dap, prob_safe, crop_res, lang=farmer_lang
-                                    )
-                                else:
-                                    if farmer_lang == "Yoruba":
-                                        personalized_msg = (
-                                            f"AgriSense: Bawo {farmer_name}, akaunti re ti fe san owo. "
-                                            f"San N1000 lati tesiwaju gbigba imoran oko re."
-                                        )[:160]
-                                    else:
-                                        personalized_msg = (
-                                            f"AgriSense: Hi {farmer_name}, your subscription has expired. "
-                                            f"Pay N1000 to continue receiving seasonal advisories."
-                                        )[:160]
-
-                                unique_msgid = f"batch_{clean_lga}_{dap}_{idx}_{int(datetime.datetime.now().timestamp())}"
-
-                                single_payload = {
-                                    "SMS": {
-                                        "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
-                                        "message": {"sender": "AgriSense", "messagetext": personalized_msg, "flash": "0", "dndsender": "1"},
-                                        "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": unique_msgid}]}
-                                    }
+                            single_payload = {
+                                "SMS": {
+                                    "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
+                                    "message": {"sender": "AgriSense", "messagetext": personalized_msg, "flash": "0", "dndsender": "1"},
+                                    "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": unique_msgid}]}
                                 }
+                            }
 
-                                try:
-                                    res = requests.post("https://api.ebulksms.com/sendsms.json", json=single_payload, headers={'Content-Type': 'application/json'}, timeout=10)
-                                    res_json = res.json()
-                                    api_status = res_json.get("response", {}).get("status", "SUCCESS")
-                                except Exception as err:
-                                    api_status = f"ERROR: {err}"
+                            try:
+                                res = requests.post("https://api.ebulksms.com/sendsms.json", json=single_payload, headers={'Content-Type': 'application/json'}, timeout=10)
+                                res_json = res.json()
+                                api_status = res_json.get("response", {}).get("status", "SUCCESS")
+                            except Exception as err:
+                                api_status = f"ERROR: {err}"
 
-                                dispatch_logs.append({
-                                    "Farmer Name": farmer_name,
-                                    "Phone": formatted_phone,
-                                    "LGA": clean_lga,
-                                    "Language": farmer_lang,
-                                    "Payment Status": p_status,
-                                    "Subscription Expiry": user_expiry,
-                                    "Land Size": f"{farmer_land} {farmer_unit}",
-                                    "Account Status": "ACTIVE" if active_account else "EXPIRED",
-                                    "Crop Age (DAP)": dap,
-                                    "Message Body": personalized_msg,
-                                    "Dispatch Status": api_status
-                                })
+                            dispatch_logs.append({
+                                "Farmer Name": farmer_name,
+                                "Phone": formatted_phone,
+                                "Language": farmer_lang,
+                                "Type": "Welcome SMS",
+                                "Message Body": personalized_msg,
+                                "Dispatch Status": api_status
+                            })
 
-                    st.success("🎉 Batch Broadcast Execution Completed!")
-                    st.markdown("### 📊 Live Dispatch Execution Report")
-                    st.dataframe(pd.DataFrame(dispatch_logs))
+                    # MODE B: ROUTINE DAILY WEATHER & CROP ADVISORY BROADCAST
+                    else:
+                        if model is None:
+                            st.error("Cannot run prediction: Model `agrisense_kwara_model_v2.pkl` is missing.")
+                        else:
+                            for lga_name, group in df_farmers.groupby("LGA"):
+                                clean_lga = str(lga_name).strip()
+                                if clean_lga not in LGA_COORDINATES:
+                                    st.warning(f"LGA '{clean_lga}' coordinates not configured. Skipping {len(group)} farmer(s).")
+                                    continue
+
+                                coords = LGA_COORDINATES[clean_lga]
+                                weather = fetch_live_weather(coords["lat"], coords["lon"])
+                                if not weather:
+                                    st.error(f"Failed to fetch weather data for {clean_lga}. Skipping group.")
+                                    continue
+
+                                gdd = calculate_gdd(weather['temp_avg'])
+                                X_live = pd.DataFrame([[
+                                    weather['today_rain'],
+                                    weather['temp_avg'],
+                                    gdd,
+                                    weather['past_7day_rain'],
+                                    weather['consecutive_dry_days'],
+                                    weather['forecast_3day_rain'],
+                                    day_of_year
+                                ]], columns=['rainfall_mm', 'temp_celsius', 'gdd', 'rain_7day_sum', 'consecutive_dry_days', 'forecast_3day_rain', 'day_of_year'])
+
+                                prob_safe = model.predict_proba(X_live)[0][1] * 100
+
+                                for idx, row in group.iterrows():
+                                    farmer_name = str(row.get('Name', 'Farmer')).strip()
+                                    raw_phone = str(row.get('Phone', '')).strip()
+                                    soil = str(row.get('Soil_Type', 'Loam/Clay')).strip()
+                                    farmer_lang = str(row.get('Language', 'Yoruba')).strip().title()
+                                    p_status = str(row.get('Payment_Status', 'PAID')).strip().upper()
+                                    user_expiry = str(row.get('Subscription_Expiry', '2026-10-02')).strip()
+                                    farmer_land = float(row.get('Land_Size', 1.0))
+                                    farmer_unit = str(row.get('Land_Unit', 'Hectares')).strip().title()
+
+                                    formatted_phone = format_nigerian_phone(raw_phone)
+
+                                    try:
+                                        p_date = pd.to_datetime(row['Planting_Date']).date()
+                                        dap = max(0, (today_date - p_date).days)
+                                    except Exception:
+                                        dap = 0
+
+                                    crop_res = calculate_crop_advisory(
+                                        dap, 
+                                        weather['consecutive_dry_days'], 
+                                        weather['forecast_3day_rain'], 
+                                        soil, 
+                                        land_size=farmer_land,
+                                        land_unit=farmer_unit
+                                    )
+
+                                    active_account = (p_status == "PAID") and is_subscription_active(user_expiry)
+
+                                    if active_account:
+                                        personalized_msg = build_smart_sms(
+                                            farmer_name, clean_lga, dap, prob_safe, crop_res, lang=farmer_lang
+                                        )
+                                    else:
+                                        if farmer_lang == "Yoruba":
+                                            personalized_msg = (
+                                                f"AgriSense: Bawo {farmer_name}, akaunti re ti fe san owo. "
+                                                f"San N1000 lati tesiwaju gbigba imoran oko re."
+                                            )[:160]
+                                        else:
+                                            personalized_msg = (
+                                                f"AgriSense: Hi {farmer_name}, your subscription has expired. "
+                                                f"Pay N1000 to continue receiving seasonal advisories."
+                                            )[:160]
+
+                                    unique_msgid = f"batch_{clean_lga}_{dap}_{idx}_{int(datetime.datetime.now().timestamp())}"
+
+                                    single_payload = {
+                                        "SMS": {
+                                            "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
+                                            "message": {"sender": "AgriSense", "messagetext": personalized_msg, "flash": "0", "dndsender": "1"},
+                                            "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": unique_msgid}]}
+                                        }
+                                    }
+
+                                    try:
+                                        res = requests.post("https://api.ebulksms.com/sendsms.json", json=single_payload, headers={'Content-Type': 'application/json'}, timeout=10)
+                                        res_json = res.json()
+                                        api_status = res_json.get("response", {}).get("status", "SUCCESS")
+                                    except Exception as err:
+                                        api_status = f"ERROR: {err}"
+
+                                    dispatch_logs.append({
+                                        "Farmer Name": farmer_name,
+                                        "Phone": formatted_phone,
+                                        "LGA": clean_lga,
+                                        "Language": farmer_lang,
+                                        "Type": "Weather Advisory",
+                                        "Account Status": "ACTIVE" if active_account else "EXPIRED",
+                                        "Crop Age (DAP)": dap,
+                                        "Message Body": personalized_msg,
+                                        "Dispatch Status": api_status
+                                    })
+
+                st.success("🎉 Batch Broadcast Execution Completed!")
+                st.markdown("### 📊 Live Dispatch Execution Report")
+                st.dataframe(pd.DataFrame(dispatch_logs))
 
     elif admin_input != "":
         st.error("🔴 Invalid Admin Passcode. Access restricted to authorized AgriSense field agents.")
