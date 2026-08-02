@@ -101,9 +101,9 @@ ADVISORY_TRANSLATIONS = {
         "fert_yo": "Ko si fe fun takete ni ipele yi (Egbin ti gbo)."
     },
     "WAIT_FOR_RAIN": {
-        "action_yo": "🟡 DI MURA FUN OJO",
+        "action_yo": "🟡 DUMURA FUN OJO",
         "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati méjíléláàdọ́rin. Fi omi pamora.",
-        "fert_yo": "⚠️ DI MURA FUN TAKETE: Ojo nla nbo ni wakati méjíléláàdọ́rin. Takete re le ba je lo ti o ba fi si loni!"
+        "fert_yo": "⚠️ DUMURA FUN TAKETE: Ojo nla nbo ni wakati méjíléláàdọ́rin. Takete re le ba je lo ti o ba fi si loni!"
     },
     "EMERGENCY_IRRIGATE": {
         "action_yo": "🚨 EWU: WON OMI KIAKIA!",
