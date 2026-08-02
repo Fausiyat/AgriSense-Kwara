@@ -97,27 +97,32 @@ UI_TEXT = {
     }
 }
 
-# Dynamic Irrigation Advisory Translations
-IRRIGATION_TRANSLATIONS = {
+# Dynamic Irrigation & Fertilizer Advisory Translations
+ADVISORY_TRANSLATIONS = {
     "STOP_IRRIGATION": {
         "action_yo": "🟢 DA OMI DURO",
-        "advisory_yo": "Egbin ti gbo. Da omi duro lati gbe oko ki o to kore."
+        "advisory_yo": "Egbin ti gbo. Da omi duro lati gbe oko ki o to kore.",
+        "fert_yo": "Ko si fe fun takete ni ipele yi (Egbin ti gbo)."
     },
     "WAIT_FOR_RAIN": {
-        "action_yo": "🟡 DUMURA FUN OJO",
-        "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati méjíléláàdọ́rin. Fi omi pamora."
+        "action_yo": "🟡 DI MURA FUN OJO",
+        "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati méjíléláàdọ́rin. Fi omi pamora.",
+        "fert_yo": "⚠️ DI MURA FUN TAKETE: Ojo nla nbo ni wakati méjíléláàdọ́rin. Takete re le ba je lo ti o ba fi si loni!"
     },
     "EMERGENCY_IRRIGATE": {
-        "action_yo": "🚨 EWU: WON OMI NI KIAKIA!",
-        "advisory_yo": "EWU NLA! Erupe gbe. Ti o ba pe lati won omi, egbin le ba je!"
+        "action_yo": "🚨 EWU: WON OMI KIAKIA!",
+        "advisory_yo": "EWU NLA! Erupe gbe. Ti o ba pe lati won omi, egbin le ba je!",
+        "fert_yo": "⚠️ ERUPE GBE JU: Won omi si oko ki o to fi takete/Urea si lati ma ba egbin je."
     },
     "IRRIGATE_NOW": {
-        "action_yo": "🔵 WON OMI NI ONI",
-        "advisory_yo": "Nkan gbigbe ti po ju. Won omi daadaa si oko re."
+        "action_yo": "🔵 WON OMI NISIN",
+        "advisory_yo": "Nkan gbigbe ti po ju. Won omi daadaa fun oko re.",
+        "fert_yo": "Erupe gbe die. Won omi die ki o to fi takete si."
     },
     "MOISTURE_SAFE": {
         "action_yo": "🟢 OMI WA DAADAA",
-        "advisory_yo": "Omi ti to fun ipele idagbasoke egbin re. Ko gbudo won omi sii."
+        "advisory_yo": "Omi ti to fun ipele idagbasoke egbin re. Ko gbudo won omi sii.",
+        "fert_yo": "🟢 AKEJU OMI DA: Aaye wa lati fi takete si egbe egbin re ti o ba koo si asiko."
     }
 }
 
@@ -142,7 +147,6 @@ def is_subscription_active(expiry_date_str):
         today = datetime.date.today()
         return today <= expiry_date
     except Exception:
-        # If no valid date or formatting error, treat as unpaid for safety
         return False
         
 # Helper: Growing Degree Days (GDD)
@@ -150,39 +154,6 @@ def calculate_gdd(temp):
     base_temp, cap_temp = 10.0, 30.0
     effective_temp = min(max(temp, base_temp), cap_temp)
     return max(0, effective_temp - base_temp)
-
-# ==========================================
-# TRANSLATION DICTIONARIES (English & Yoruba)
-# ==========================================
-
-# Dynamic Irrigation & Fertilizer Advisory Translations
-ADVISORY_TRANSLATIONS = {
-    "STOP_IRRIGATION": {
-        "action_yo": "🟢 DA OMI DURO",
-        "advisory_yo": "Egbin ti gbo. Da omi duro lati gbe oko ki o to kore.",
-        "fert_yo": "Ko si fe fun takete ni ipele yi (Egbin ti gbo)."
-    },
-    "WAIT_FOR_RAIN": {
-        "action_yo": "🟡 DI MURA FUN OJO",
-        "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati méjíléláàdọ́rin. Fi omi pamora.",
-        "fert_yo": "⚠️ DI MURA FUN TAKETE: Ojo nla nbo ni wakati méjíléláàdọ́rin. Takete re le ba je lo ti o ba fi si loni!"
-    },
-    "EMERGENCY_IRRIGATE": {
-        "action_yo": "🚨 EWU: WON OMI KIAKIA!",
-        "advisory_yo": "EWU NLA! Erupe gbe. Ti o ba pe lati wOn omi, egbin le ba je!",
-        "fert_yo": "⚠️ ERUPE GBE JU: Won omi si oko ki o to fi takete/Urea si lati ma ba egbin je."
-    },
-    "IRRIGATE_NOW": {
-        "action_yo": "🔵 WON OMI NISIN",
-        "advisory_yo": "Nkan gbigbe ti po ju. Won omi daadaa fun oko re.",
-        "fert_yo": "Erupe gbe die. Won omi die ki o to fi takete si."
-    },
-    "MOISTURE_SAFE": {
-        "action_yo": "🟢 OMI WA DAADAA",
-        "advisory_yo": "Omi ti to fun ipele idagbasoke egbin re. Ko gbudo won omi sii.",
-        "fert_yo": "🟢 AKEJU OMI DA: Aaye wa lati fi takete si egbe egbin re ti o ba koo si asiko."
-    }
-}
 
 # Upgraded Combined Irrigation & Fertilizer Advisory Engine
 def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_type="Loam/Clay"):
@@ -203,7 +174,8 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
             "status": "STOP_IRRIGATION",
             "action": "🟢 STOP IRRIGATION",
             "advisory": "Crop mature. Stop watering for field drying before harvest.",
-            "fert_en": "No fertilizer application required at maturation phase."
+            "fert_en": "No fertilizer application required at maturation phase.",
+            "fert_yo": "Ko si fe fun takete ni ipele yi (Egbin ti gbo)."
         }
 
     # Evaluate Moisture & Irrigation Status
@@ -264,8 +236,8 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
         "fert_yo": fert_yo
     }
 
-# Fetch Live Weather from Open-Meteo REST API (Standard Clean URL)
-@st.cache_data(ttl=3600, show_spinner=False)  # Cache results for 1 hour
+# Fetch Live Weather from Open-Meteo REST API
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_live_weather(lat, lon):
     url = (
         f"https://api.open-meteo.com/v1/forecast?"
@@ -356,54 +328,39 @@ tab1, tab2 = st.tabs(["📊 Single Farm Interactive Dashboard", "🚀 Multi-Farm
 
 # --- TAB 1: SINGLE FARM DASHBOARD ---
 with tab1:
-    # 1. Global / Tab Language Switcher
     lang = st.radio("🌐 Choose Language / Yan Ede:", ["English", "Yoruba"], horizontal=True, key="dashboard_lang")
-    txt = UI_TEXT[lang] # Load dictionary based on selected language
+    txt = UI_TEXT[lang]
 
     if model is None:
         st.error(f"⚠️ Model file `agrisense_kwara_model_v2.pkl` not found in directory: `{BASE_DIR}`.")
 
-    # 2. Paid vs. Unpaid User Access Gate
     st.markdown("---")
     st.markdown("### 🔑 Farmer Account Portal / Ipade Wo Tesiwaju")
-    # Updated Code:
+    
     user_input_phone = st.text_input(
-    "Enter Phone Number / Tẹ Nọmba Fonu Re:", 
-    value="", 
-    placeholder="e.g. 08112345678", 
-    key="user_login_phone"
+        "Enter Phone Number / Tẹ Nọmba Fonu Re:", 
+        value="", 
+        placeholder="e.g. 08143086509", 
+        key="user_login_phone"
     )
     
-    # Simple Access Check (For pilot, we verify against loaded roster or allow active status)
     formatted_login = format_nigerian_phone(user_input_phone)
     
-   # 1. Default to locked/unpaid for unverified numbers
     is_paid_user = False
-    
-    # 2. List of Admin/Tester phone numbers allowed for demo
     ALLOWED_ADMIN_NUMBERS = ["08143086509", "2348143086509"]
 
-    # 3. Verify Admin OR Roster Record (Dual Check: Status + Expiry Date)
     if formatted_login in ALLOWED_ADMIN_NUMBERS or formatted_login[-10:] in [p[-10:] for p in ALLOWED_ADMIN_NUMBERS]:
         is_paid_user = True
     elif 'df_farmers' in locals() and df_farmers is not None and not df_farmers.empty:
-        # Search roster for phone number match
         matched_user = df_farmers[df_farmers['Phone'].astype(str).str.contains(formatted_login[-10:])]
-        
         if not matched_user.empty:
-            # Check Master Switch (Payment_Status)
             p_status = str(matched_user.iloc[0].get('Payment_Status', 'UNPAID')).strip().upper()
-            
-            # Check Calendar Timer (Subscription_Expiry)
             user_expiry = str(matched_user.iloc[0].get('Subscription_Expiry', '2026-10-02')).strip()
             date_is_valid = is_subscription_active(user_expiry)
-            
-            # BOTH must be valid for a regular farmer
             is_paid_user = (p_status == "PAID") and date_is_valid
         else:
             is_paid_user = False
 
-    # 4. Render Status Banner
     if is_paid_user:
         st.success("🟢 Account Status: Active Subscriber / Akaunti Re Wa Ni Alafia")
     else:
@@ -411,7 +368,6 @@ with tab1:
         st.info("💡 Pay seasonal/monthly subscription to unlock ML planting forecasts & irrigation alerts.")
     st.markdown("---")
 
-    # 3. Farm Setup Inputs
     col_sel1, col_sel2, col_sel3 = st.columns(3)
     with col_sel1:
         selected_lga = st.selectbox(txt["lga_label"], list(LGA_COORDINATES.keys()), key="single_lga")
@@ -428,7 +384,6 @@ with tab1:
     live_data = fetch_live_weather(coords["lat"], coords["lon"])
 
     if live_data:
-        # Live Weather Metrics (Visible to all)
         st.markdown(f"#### {txt['live_metrics_header']} ({selected_lga})")
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric(txt["today_rain"], f"{live_data['today_rain']} mm")
@@ -437,7 +392,6 @@ with tab1:
         c4.metric(txt["dry_streak"], f"{live_data['consecutive_dry_days']} Days")
         c5.metric(txt["avg_temp"], f"{live_data['temp_avg']} °C")
 
-        # Compute Crop Advisory (Irrigation & Fertilizer)
         crop_res = calculate_crop_advisory(dap, live_data['consecutive_dry_days'], live_data['forecast_3day_rain'], soil_type)
         status_key = crop_res.get("status", "MOISTURE_SAFE")
         yo_irrig = ADVISORY_TRANSLATIONS.get(status_key, ADVISORY_TRANSLATIONS["MOISTURE_SAFE"])
@@ -446,7 +400,6 @@ with tab1:
         advisory_text = yo_irrig["advisory_yo"] if lang == "Yoruba" else crop_res["advisory"]
         fert_text = crop_res["fert_yo"] if lang == "Yoruba" else crop_res["fert_en"]
 
-        # Calculate Model Prediction if available
         planting_advisory = "N/A"
         prob_safe = 50.0
         if model is not None:
@@ -471,7 +424,6 @@ with tab1:
 
         st.markdown("---")
 
-        # 4. GATED ADVISORY SECTION (Paid Users vs Freemium Lock)
         if is_paid_user:
             st.markdown("### 🎯 Select Advisory Focus / Yan Imoran Ti O Fẹ")
             
@@ -506,7 +458,6 @@ with tab1:
                 st.caption("💡 *Input Safety Tip: Applying fertilizer before heavy downpours washes nutrients away and wastes money.*")
 
         else:
-            # UNPAID USER FREEMIUM LOCK BOX
             st.warning("🔒 **PREMIUM ADVISORIES LOCKED / IMORAN AKANSE TITI**")
             st.markdown(
                 """
@@ -520,7 +471,6 @@ with tab1:
 
         st.markdown("---")
 
-        # 5. Rainfall Trend Chart
         st.write(f"### {txt['trend_header']} {selected_lga}")
         df_trend = pd.DataFrame({
             "Date": live_data["dates"],
@@ -531,7 +481,6 @@ with tab1:
 
         st.markdown("---")
 
-        # 6. Single SMS Broadcast Tester
         st.markdown(f"### {txt['sms_header']}")
 
         if lang == "Yoruba":
@@ -573,8 +522,7 @@ with tab1:
 with tab2:
     st.markdown("### 🔒 Authorized Personnel Area (Admin / Field Officer)")
     
-    # 1. Admin Security Gate
-    ADMIN_PIN = st.secrets.get("ADMIN_PIN", "2026")  # Default PIN for pilot: 2026
+    ADMIN_PIN = st.secrets.get("ADMIN_PIN", "2026")
     admin_input = st.text_input("🔑 Enter Admin / Agent Passcode:", type="password", key="admin_gate_pin")
 
     if admin_input == ADMIN_PIN:
@@ -584,7 +532,7 @@ with tab2:
         st.markdown("### 📋 Upload Recipient Roster (50 Farmers Target)")
         st.info(
             "💡 **Batch Roster Columns Required:** `Name`, `Phone`, `LGA`, `Planting_Date`, `Soil_Type`.\n\n"
-            "Optional Columns: `Language` (`Yoruba`/`English`), `Payment_Status` (`PAID`/`UNPAID`)."
+            "Optional Columns: `Language` (`Yoruba`/`English`), `Payment_Status` (`PAID`/`UNPAID`), `Subscription_Expiry` (`YYYY-MM-DD`)."
         )
         
         uploaded_file = st.file_uploader("Upload Farmers File (.xlsx or .csv)", type=["xlsx", "csv"], key="admin_file_uploader")
@@ -602,7 +550,7 @@ with tab2:
                     today_date = datetime.date.today()
                     day_of_year = today_date.timetuple().tm_yday
 
-                    with st.spinner("Processing climate data & preparing bulk dispatch..."):
+                    with st.spinner("Processing climate data & preparing personalized bulk dispatches..."):
                         for lga_name, group in df_farmers.groupby("LGA"):
                             clean_lga = str(lga_name).strip()
                             if clean_lga not in LGA_COORDINATES:
@@ -630,15 +578,13 @@ with tab2:
                             planting_status_en = "SAFE TO PLANT" if prob_safe >= 80 else "DO NOT PLANT"
                             planting_status_yo = "O DARA LATI GBIN" if prob_safe >= 80 else "E MURA DA GBIGBIN DURO"
 
-                            gsm_recipients = []
-                            lga_farmer_records = []
-
+                            # Send individualized SMS per farmer to preserve personalized name/details
                             for idx, row in group.iterrows():
                                 farmer_name = str(row.get('Name', 'Farmer')).strip()
                                 raw_phone = str(row.get('Phone', '')).strip()
                                 soil = str(row.get('Soil_Type', 'Loam/Clay')).strip()
                                 farmer_lang = str(row.get('Language', 'Yoruba')).strip().title()
-                                # Read Expiry Date (Defaults to 2026-10-02 for Pilot if missing)
+                                p_status = str(row.get('Payment_Status', 'PAID')).strip().upper()
                                 user_expiry = str(row.get('Subscription_Expiry', '2026-10-02')).strip()
 
                                 formatted_phone = format_nigerian_phone(raw_phone)
@@ -653,8 +599,9 @@ with tab2:
                                 status_key = crop_res.get("status", "MOISTURE_SAFE")
                                 yo_irrig = ADVISORY_TRANSLATIONS.get(status_key, ADVISORY_TRANSLATIONS["MOISTURE_SAFE"])
 
-                                # 2. SEGREGATE PAID VS UNPAID FARMERS
-                                if is_subscription_active(user_expiry):
+                                active_account = (p_status == "PAID") and is_subscription_active(user_expiry)
+
+                                if active_account:
                                     if farmer_lang == "Yoruba":
                                         personalized_msg = (
                                             f"AgriSense({clean_lga}): Bawo {farmer_name}, "
@@ -668,7 +615,6 @@ with tab2:
                                             f"Irrig: {crop_res['action']}. Fert: {crop_res['fert_en'][:30]}..."
                                         )[:160]
                                 else:
-                                    # UNPAID / EXPIRED NUDGE SMS
                                     if farmer_lang == "Yoruba":
                                         personalized_msg = (
                                             f"AgriSense: Bawo {farmer_name}, akaunti re ti fe san owo. "
@@ -677,51 +623,38 @@ with tab2:
                                     else:
                                         personalized_msg = (
                                             f"AgriSense: Hi {farmer_name}, your subscription has expired. "
-                                            f"Pay N100 to continue receiving seasonal advisories."
+                                            f"Pay N1000 to continue receiving seasonal advisories."
                                         )[:160]
 
-                                unique_msgid = f"batch_{clean_lga}_{dap}_{idx}"
+                                unique_msgid = f"batch_{clean_lga}_{dap}_{idx}_{int(datetime.datetime.now().timestamp())}"
 
-                                gsm_recipients.append({
-                                    "msidn": formatted_phone,
-                                    "msgid": unique_msgid
-                                })
-                                # Check status for logging
-                                active_status = "ACTIVE" if is_subscription_active(user_expiry) else "EXPIRED"
-
-                                lga_farmer_records.append({
-                                    "Farmer Name": farmer_name,
-                                    "Phone": formatted_phone,
-                                    "LGA": clean_lga,
-                                    "Language": farmer_lang,
-                                    "Subscription Expiry": user_expiry,
-                                    "Account Status": active_status,
-                                    "Crop Age (DAP)": dap,
-                                    "Message Body": personalized_msg
-                                })
-
-                            # Execute Bulk API Call per LGA Group
-                            if gsm_recipients:
-                                sample_msg = lga_farmer_records[0]["Message Body"]
-                                
-                                bulk_payload = {
+                                single_payload = {
                                     "SMS": {
                                         "auth": {"username": EBULKSMS_USERNAME, "apikey": EBULKSMS_API_KEY},
-                                        "message": {"sender": "AgriSense", "messagetext": sample_msg, "flash": "0", "dndsender": "1"},
-                                        "recipients": {"gsm": gsm_recipients}
+                                        "message": {"sender": "AgriSense", "messagetext": personalized_msg, "flash": "0", "dndsender": "1"},
+                                        "recipients": {"gsm": [{"msidn": formatted_phone, "msgid": unique_msgid}]}
                                     }
                                 }
 
                                 try:
-                                    res = requests.post("https://api.ebulksms.com/sendsms.json", json=bulk_payload, headers={'Content-Type': 'application/json'}, timeout=10)
+                                    res = requests.post("https://api.ebulksms.com/sendsms.json", json=single_payload, headers={'Content-Type': 'application/json'}, timeout=10)
                                     res_json = res.json()
                                     api_status = res_json.get("response", {}).get("status", "SUCCESS")
                                 except Exception as err:
                                     api_status = f"ERROR: {err}"
 
-                                for record in lga_farmer_records:
-                                    record["Dispatch Status"] = api_status
-                                    dispatch_logs.append(record)
+                                dispatch_logs.append({
+                                    "Farmer Name": farmer_name,
+                                    "Phone": formatted_phone,
+                                    "LGA": clean_lga,
+                                    "Language": farmer_lang,
+                                    "Payment Status": p_status,
+                                    "Subscription Expiry": user_expiry,
+                                    "Account Status": "ACTIVE" if active_account else "EXPIRED",
+                                    "Crop Age (DAP)": dap,
+                                    "Message Body": personalized_msg,
+                                    "Dispatch Status": api_status
+                                })
 
                     st.success("🎉 Batch Broadcast Execution Completed!")
                     st.markdown("### 📊 Live Dispatch Execution Report")
