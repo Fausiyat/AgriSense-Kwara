@@ -147,16 +147,20 @@ def calculate_gdd(temp):
     effective_temp = min(max(temp, base_temp), cap_temp)
     return max(0, effective_temp - base_temp)
 
-# Helper: Convert Required Water Depth (mm) & Land Area to Generator Pumping Hours
-def calculate_pump_hours(water_depth_mm, land_size_ha=1.0):
-    if water_depth_mm <= 0:
+# Helper: Convert Water Depth (mm), Farm Size & Units to Generator Pumping Hours
+def calculate_pump_hours(water_depth_mm, land_size=1.0, unit="Hectares"):
+    if water_depth_mm <= 0 or land_size <= 0:
         return 0.0
+    
+    # Convert Acres to Hectares if needed
+    land_size_ha = land_size * 0.404686 if str(unit).lower() == "acres" else land_size
+    
     total_liters = water_depth_mm * 10000 * land_size_ha
-    pump_capacity_lh = 25000  # Standard 2-inch petrol pump flow rate in Kwara (~25,000 L/hr)
+    pump_capacity_lh = 25000  # Standard 2-inch petrol pump (~25,000 L/hr)
     return round(total_liters / pump_capacity_lh, 1)
 
 # Upgraded Combined Irrigation & Fertilizer Advisory Engine
-def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_type="Loam/Clay", land_size_ha=1.0):
+def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_type="Loam/Clay", land_size=1.0, land_unit="Hectares"):
     dry_limit_factor = 0.6 if str(soil_type).lower() == "sandy" else 1.0
 
     # Determine Crop Stage & Daily Water Needs
@@ -180,7 +184,7 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
 
     # Calculate pumping hours for required 3-day water application depth
     needed_mm = daily_need * 3
-    hrs = calculate_pump_hours(needed_mm, land_size_ha=land_size_ha)
+    hrs = calculate_pump_hours(needed_mm, land_size=land_size, unit=land_unit)
 
     # Evaluate Moisture & Irrigation Status
     if consecutive_dry_days >= max_dry:
@@ -372,7 +376,7 @@ with tab1:
         st.info("💡 Pay seasonal/monthly subscription to unlock ML planting forecasts & irrigation alerts.")
     st.markdown("---")
 
-    col_sel1, col_sel2, col_sel3, col_sel4 = st.columns(4)
+    col_sel1, col_sel2, col_sel3, col_sel4, col_sel5 = st.columns([2, 2, 2, 2, 2])
     with col_sel1:
         selected_lga = st.selectbox(txt["lga_label"], list(LGA_COORDINATES.keys()), key="single_lga")
     with col_sel2:
@@ -380,7 +384,9 @@ with tab1:
     with col_sel3:
         soil_type = st.selectbox(txt["soil_label"], ["Loam/Clay", "Sandy"], key="single_soil")
     with col_sel4:
-        land_size_ha = st.number_input("Farm Size (Hectares):", min_value=0.1, max_value=50.0, value=1.0, step=0.1, key="single_land")
+        land_size = st.number_input("Farm Size:", min_value=0.1, max_value=100.0, value=1.0, step=0.5, key="single_land")
+    with col_sel5:
+        land_unit = st.selectbox("Unit:", ["Acres", "Hectares"], key="single_unit")
 
     today_date = datetime.date.today()
     dap = max(0, (today_date - planting_date).days)
@@ -398,7 +404,14 @@ with tab1:
         c4.metric(txt["dry_streak"], f"{live_data['consecutive_dry_days']} Days")
         c5.metric(txt["avg_temp"], f"{live_data['temp_avg']} °C")
 
-        crop_res = calculate_crop_advisory(dap, live_data['consecutive_dry_days'], live_data['forecast_3day_rain'], soil_type, land_size_ha=land_size_ha)
+        crop_res = calculate_crop_advisory(
+            dap, 
+            live_data['consecutive_dry_days'], 
+            live_data['forecast_3day_rain'], 
+            soil_type, 
+            land_size=land_size, 
+            land_unit=land_unit
+        )
         status_key = crop_res.get("status", "MOISTURE_SAFE")
         yo_irrig = ADVISORY_TRANSLATIONS.get(status_key, ADVISORY_TRANSLATIONS["MOISTURE_SAFE"])
 
@@ -456,7 +469,7 @@ with tab1:
             elif advisory_choice == "💧 Irrigation & Water Plan":
                 st.markdown("### 💧 Dry-Season & Irrigation Advisory")
                 st.info(f"**{txt['growth_stage']}:** {crop_res['stage']} | **{txt['irrig_status']}:** {action_text}\n\n{advisory_text}")
-                st.caption(f"💡 *Dry Season Tip: Pumping required for {land_size_ha}ha field = ~{crop_res['pump_hrs']} hrs of 2-inch petrol pump.*")
+                st.caption(f"💡 *Dry Season Tip: Pumping required for {land_size} {land_unit} field = ~{crop_res['pump_hrs']} hrs of 2-inch petrol pump.*")
 
             elif advisory_choice == "🧪 Fertilizer & Input Protection":
                 st.markdown("### 🧪 Fertilizer Timing & Crop Protection")
@@ -553,7 +566,7 @@ with tab2:
         st.markdown("### 📋 Upload Recipient Roster (50 Farmers Target)")
         st.info(
             "💡 **Batch Roster Columns Required:** `Name`, `Phone`, `LGA`, `Planting_Date`, `Soil_Type`.\n\n"
-            "Optional Columns: `Language` (`Yoruba`/`English`), `Payment_Status` (`PAID`/`UNPAID`), `Subscription_Expiry` (`YYYY-MM-DD`), `Land_Size_Ha` (default: 1.0)."
+            "Optional Columns: `Language` (`Yoruba`/`English`), `Payment_Status` (`PAID`/`UNPAID`), `Subscription_Expiry` (`YYYY-MM-DD`), `Land_Size` (default: 1.0), `Land_Unit` (`Acres`/`Hectares`)."
         )
         
         uploaded_file = st.file_uploader("Upload Farmers File (.xlsx or .csv)", type=["xlsx", "csv"], key="admin_file_uploader")
@@ -606,7 +619,8 @@ with tab2:
                                 farmer_lang = str(row.get('Language', 'Yoruba')).strip().title()
                                 p_status = str(row.get('Payment_Status', 'PAID')).strip().upper()
                                 user_expiry = str(row.get('Subscription_Expiry', '2026-10-02')).strip()
-                                farmer_land_ha = float(row.get('Land_Size_Ha', 1.0))
+                                farmer_land = float(row.get('Land_Size', 1.0))
+                                farmer_unit = str(row.get('Land_Unit', 'Hectares')).strip().title()
 
                                 formatted_phone = format_nigerian_phone(raw_phone)
 
@@ -616,7 +630,14 @@ with tab2:
                                 except Exception:
                                     dap = 0
 
-                                crop_res = calculate_crop_advisory(dap, weather['consecutive_dry_days'], weather['forecast_3day_rain'], soil, land_size_ha=farmer_land_ha)
+                                crop_res = calculate_crop_advisory(
+                                    dap, 
+                                    weather['consecutive_dry_days'], 
+                                    weather['forecast_3day_rain'], 
+                                    soil, 
+                                    land_size=farmer_land,
+                                    land_unit=farmer_unit
+                                )
                                 status_key = crop_res.get("status", "MOISTURE_SAFE")
                                 yo_irrig = ADVISORY_TRANSLATIONS.get(status_key, ADVISORY_TRANSLATIONS["MOISTURE_SAFE"])
 
@@ -671,7 +692,7 @@ with tab2:
                                     "Language": farmer_lang,
                                     "Payment Status": p_status,
                                     "Subscription Expiry": user_expiry,
-                                    "Land Size (Ha)": farmer_land_ha,
+                                    "Land Size": f"{farmer_land} {farmer_unit}",
                                     "Account Status": "ACTIVE" if active_account else "EXPIRED",
                                     "Crop Age (DAP)": dap,
                                     "Message Body": personalized_msg,
