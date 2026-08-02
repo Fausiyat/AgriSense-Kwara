@@ -367,10 +367,11 @@ with tab1:
         st.error(f"⚠️ Model file `agrisense_kwara_model_v2.pkl` not found in directory: `{BASE_DIR}`.")
 
     st.markdown("---")
- # 🔑 FARMER ACCOUNT PORTAL (WITH SESSION STATE ACTIVATION)
+    
+    # 🔑 FARMER ACCOUNT PORTAL (WITH SESSION STATE PERSISTENCE)
     st.markdown("### 🔑 Farmer Account Portal / Ipade Wo Tesiwaju")
 
-    # Initialize Session State Variables if not present
+    # Initialize Session State Variables
     if "is_paid_user" not in st.session_state:
         st.session_state.is_paid_user = False
     if "user_phone" not in st.session_state:
@@ -387,7 +388,6 @@ with tab1:
             st.session_state.is_paid_user = True
             if paid_phone:
                 st.session_state.user_phone = str(paid_phone)
-            # Clear reference parameter to keep URL clean
             st.query_params.clear()
 
     # Input Box for Farmer Login
@@ -401,7 +401,7 @@ with tab1:
     formatted_login = format_nigerian_phone(user_input_phone)
     ALLOWED_ADMIN_NUMBERS = ["08143086509", "2348143086509"]
 
-    # Access Gate Checks
+    # Access Gate Verification Checks
     if formatted_login in ALLOWED_ADMIN_NUMBERS or formatted_login[-10:] in [p[-10:] for p in ALLOWED_ADMIN_NUMBERS]:
         st.session_state.is_paid_user = True
     elif user_input_phone != "" and 'df_farmers' in locals() and df_farmers is not None and not df_farmers.empty:
