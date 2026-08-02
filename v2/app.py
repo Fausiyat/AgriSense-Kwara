@@ -108,15 +108,15 @@ IRRIGATION_TRANSLATIONS = {
         "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati méjíléláàdọ́rin. Fi omi pamora."
     },
     "EMERGENCY_IRRIGATE": {
-        "action_yo": "🚨 EWU: WUN OMI NIOUN!",
-        "advisory_yo": "EWU NLA! Erupe gbe. Ti o ba pe lati wun omi, egbin le ba je!"
+        "action_yo": "🚨 EWU: WON OMI NI KIAKIA!",
+        "advisory_yo": "EWU NLA! Erupe gbe. Ti o ba pe lati won omi, egbin le ba je!"
     },
     "IRRIGATE_NOW": {
-        "action_yo": "🔵 WUN OMI NIOUN",
-        "advisory_yo": "Nkan gbigbe ti po ju. Wun omi daadaa si oko re."
+        "action_yo": "🔵 WON OMI NI ONI",
+        "advisory_yo": "Nkan gbigbe ti po ju. Won omi daadaa si oko re."
     },
     "MOISTURE_SAFE": {
-        "action_yo": "🟢 OMI WA DARADARA",
+        "action_yo": "🟢 OMI WA DAADAA",
         "advisory_yo": "Omi ti to fun ipele idagbasoke egbin re. Ko gbudo won omi sii."
     }
 }
@@ -163,9 +163,9 @@ ADVISORY_TRANSLATIONS = {
         "fert_yo": "Ko si fe fun takete ni ipele yi (Egbin ti gbo)."
     },
     "WAIT_FOR_RAIN": {
-        "action_yo": "🟡 DUMURA FUN OJO",
+        "action_yo": "🟡 DI MURA FUN OJO",
         "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati méjíléláàdọ́rin. Fi omi pamora.",
-        "fert_yo": "⚠️ DUMURA FUN TAKETE: Ojo nla nbo ni wakati méjíléláàdọ́rin. Takete re le ba je lo ti o ba fi si loni!"
+        "fert_yo": "⚠️ DI MURA FUN TAKETE: Ojo nla nbo ni wakati méjíléláàdọ́rin. Takete re le ba je lo ti o ba fi si loni!"
     },
     "EMERGENCY_IRRIGATE": {
         "action_yo": "🚨 EWU: WON OMI KIAKIA!",
@@ -377,35 +377,38 @@ with tab1:
     # Simple Access Check (For pilot, we verify against loaded roster or allow active status)
     formatted_login = format_nigerian_phone(user_input_phone)
     
-    # Check if roster dataframe exists in memory from Tab 2 upload
-    is_paid_user = False # Default to locked/unpaid for unverified numbers
+   # 1. Default to locked/unpaid for unverified numbers
+    is_paid_user = False
     
-    # List of Admin/Tester phone numbers allowed for demo
+    # 2. List of Admin/Tester phone numbers allowed for demo
     ALLOWED_ADMIN_NUMBERS = ["08143086509", "2348143086509"]
 
+    # 3. Verify Admin OR Roster Record (Dual Check: Status + Expiry Date)
     if formatted_login in ALLOWED_ADMIN_NUMBERS or formatted_login[-10:] in [p[-10:] for p in ALLOWED_ADMIN_NUMBERS]:
         is_paid_user = True
     elif 'df_farmers' in locals() and df_farmers is not None and not df_farmers.empty:
+        # Search roster for phone number match
         matched_user = df_farmers[df_farmers['Phone'].astype(str).str.contains(formatted_login[-10:])]
+        
         if not matched_user.empty:
-            p_status = str(matched_user.iloc[0].get('Payment_Status', 'UNPAID')).upper()
-            is_paid_user = (p_status == "PAID")
-    
-    # Optional Roster Lookup logic (if df_farmers exists)
-    if 'df_farmers' in locals() and df_farmers is not None and not df_farmers.empty:
-        matched_user = df_farmers[df_farmers['Phone'].astype(str).str.contains(formatted_login[-10:])]
-        if not matched_user.empty:
-            p_status = str(matched_user.iloc[0].get('Payment_Status', 'PAID')).upper()
-            is_paid_user = (p_status == "PAID")
+            # Check Master Switch (Payment_Status)
+            p_status = str(matched_user.iloc[0].get('Payment_Status', 'UNPAID')).strip().upper()
+            
+            # Check Calendar Timer (Subscription_Expiry)
+            user_expiry = str(matched_user.iloc[0].get('Subscription_Expiry', '2026-10-02')).strip()
+            date_is_valid = is_subscription_active(user_expiry)
+            
+            # BOTH must be valid for a regular farmer
+            is_paid_user = (p_status == "PAID") and date_is_valid
         else:
             is_paid_user = False
 
+    # 4. Render Status Banner
     if is_paid_user:
         st.success("🟢 Account Status: Active Subscriber / Akaunti Re Wa Ni Alafia")
     else:
-        st.warning("🔴 Account Status: Unpaid / Akaunti Re Ti Fe San Owo")
-        st.info("💡 Pay seasonal subscription to unlock ML planting forecasts & irrigation alerts.")
-
+        st.warning("🔴 Account Status: Expired or Unpaid / Akaunti Re Ti Fe San Owo")
+        st.info("💡 Pay seasonal/monthly subscription to unlock ML planting forecasts & irrigation alerts.")
     st.markdown("---")
 
     # 3. Farm Setup Inputs
@@ -507,13 +510,13 @@ with tab1:
             st.warning("🔒 **PREMIUM ADVISORIES LOCKED / IMORAN AKANSE TITI**")
             st.markdown(
                 """
-                > **Upgrade to AgriSense Premium (₦500 / Season):**
+                > **Upgrade to AgriSense Premium (₦1000 / Month):**
                 > * 🌾 Unlock Machine Learning Planting Decision Scores.
                 > * 💧 Get Exact Daily Pumping/Watering Schedules (Saves fuel in Dry Season).
                 > * 🧪 Prevent Fertilizer Leaching & Seed Loss.
                 """
             )
-            st.button("💳 Pay ₦500 to Unlock Instantly", key="pay_btn_tab1")
+            st.button("💳 Pay ₦1000 to Unlock Instantly", key="pay_btn_tab1")
 
         st.markdown("---")
 
