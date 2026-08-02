@@ -384,7 +384,7 @@ with tab1:
     with col_sel3:
         soil_type = st.selectbox(txt["soil_label"], ["Loam/Clay", "Sandy"], key="single_soil")
     with col_sel4:
-        land_size = st.number_input("Farm Size:", min_value=0.1, max_value=100.0, value=1.0, step=0.5, key="single_land")
+        land_size = st.number_input("Farm Size:", min_value=0.1, max_value=None, value=1.0, step=0.5, key="single_land")
     with col_sel5:
         land_unit = st.selectbox("Unit:", ["Acres", "Hectares"], key="single_unit")
 
