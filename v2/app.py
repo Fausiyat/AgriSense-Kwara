@@ -101,9 +101,9 @@ ADVISORY_TRANSLATIONS = {
         "fert_yo": "Ko si fe fun takete ni ipele yi (Egbin ti gbo)."
     },
     "WAIT_FOR_RAIN": {
-        "action_yo": "🟡 DUMURA FUN OJO",
+        "action_yo": "🟡 DI MURA FUN OJO",
         "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati méjíléláàdọ́rin. Fi omi pamora.",
-        "fert_yo": "⚠️ DUMURA FUN TAKETE: Ojo nla nbo ni wakati méjíléláàdọ́rin. Takete re le ba je lo ti o ba fi si loni!"
+        "fert_yo": "⚠️ DI MURA FUN TAKETE: Ojo nla nbo ni wakati méjíléláàdọ́rin. Takete re le ba je lo ti o ba fi si loni!"
     },
     "EMERGENCY_IRRIGATE": {
         "action_yo": "🚨 EWU: WON OMI KIAKIA!",
@@ -159,6 +159,26 @@ def calculate_pump_hours(water_depth_mm, land_size=1.0, unit="Hectares"):
     pump_capacity_lh = 25000  # Standard 2-inch petrol pump (~25,000 L/hr)
     return round(total_liters / pump_capacity_lh, 1)
 
+# Helper: Verify Paystack Transaction Reference via Paystack REST API
+def verify_paystack_transaction(reference_code):
+    paystack_secret = st.secrets.get("PAYSTACK_SECRET_KEY", "")
+    if not paystack_secret or not reference_code:
+        return False, None
+        
+    headers = {"Authorization": f"Bearer {paystack_secret}"}
+    url = f"https://api.paystack.co/transaction/verify/{reference_code}"
+    
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        if res.status_code == 200:
+            data = res.json().get("data", {})
+            if data.get("status") == "success":
+                customer_phone = data.get("metadata", {}).get("phone") or data.get("customer", {}).get("phone")
+                return True, customer_phone
+    except Exception as e:
+        st.error(f"Payment verification error: {e}")
+    return False, None
+
 # Upgraded Combined Irrigation & Fertilizer Advisory Engine
 def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_type="Loam/Clay", land_size=1.0, land_unit="Hectares"):
     dry_limit_factor = 0.6 if str(soil_type).lower() == "sandy" else 1.0
@@ -186,6 +206,11 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
     needed_mm = daily_need * 3
     hrs = calculate_pump_hours(needed_mm, land_size=land_size, unit=land_unit)
 
+    # Calculate exact next watering date based on growth stage interval
+    today = datetime.date.today()
+    next_watering_date = today + datetime.timedelta(days=max_dry)
+    formatted_next_date = next_watering_date.strftime("%b %d, %Y")
+
     # Evaluate Moisture & Irrigation Status
     if consecutive_dry_days >= max_dry:
         if forecast_3day_rain >= 15.0:
@@ -196,11 +221,11 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
             if "Flowering" in stage:
                 status = "EMERGENCY_IRRIGATE"
                 action = f"🚨 CRITICAL: IRRIGATE NOW (~{hrs} hrs pump)"
-                advisory = f"CRITICAL! {consecutive_dry_days} dry days in Flowering stage. Apply ~{needed_mm:.1f}mm (~{hrs} hrs 2-inch pump) to prevent pollination failure!"
+                advisory = f"CRITICAL! {consecutive_dry_days} dry days in Flowering stage. Apply ~{needed_mm:.1f}mm (~{hrs} hrs 2-inch pump) to prevent pollination failure!\n\n📅 **Next Irrigation Date:** {formatted_next_date} (if dry spell continues)."
             else:
                 status = "IRRIGATE_NOW"
                 action = f"🔵 IRRIGATE NOW (~{hrs} hrs pump)"
-                advisory = f"Dry limit reached. Apply ~{needed_mm:.1f}mm water (run 2-inch pump for ~{hrs} hours)."
+                advisory = f"Dry limit reached. Apply ~{needed_mm:.1f}mm water (run 2-inch pump for ~{hrs} hours).\n\n📅 **Next Irrigation Date:** {formatted_next_date} (if dry spell continues)."
     else:
         status = "MOISTURE_SAFE"
         action = "🟢 MOISTURE OPTIMAL"
@@ -242,7 +267,8 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
         "advisory": advisory,
         "fert_en": fert_en,
         "fert_yo": fert_yo,
-        "pump_hrs": hrs
+        "pump_hrs": hrs,
+        "next_date": formatted_next_date
     }
 
 # Fetch Live Weather from Open-Meteo REST API
@@ -344,30 +370,41 @@ with tab1:
 
     st.markdown("---")
     st.markdown("### 🔑 Farmer Account Portal / Ipade Wo Tesiwaju")
+
+    # Handle Paystack Redirect URL verification
+    is_paid_user = False
+    user_input_phone = ""
     
+    query_params = st.query_params
+    if "reference" in query_params:
+        pay_ref = query_params["reference"]
+        is_valid_pay, paid_phone = verify_paystack_transaction(pay_ref)
+        if is_valid_pay:
+            st.balloons()
+            st.success("🎉 Payment Confirmed! Welcome to AgriSense Premium.")
+            is_paid_user = True
+            if paid_phone:
+                user_input_phone = str(paid_phone)
+
     user_input_phone = st.text_input(
         "Enter Phone Number / Tẹ Nọmba Fonu Re:", 
-        value="", 
+        value=user_input_phone, 
         placeholder="e.g. 08012345678", 
         key="user_login_phone"
     )
     
     formatted_login = format_nigerian_phone(user_input_phone)
-    
-    is_paid_user = False
     ALLOWED_ADMIN_NUMBERS = ["08143086509", "2348143086509"]
 
     if formatted_login in ALLOWED_ADMIN_NUMBERS or formatted_login[-10:] in [p[-10:] for p in ALLOWED_ADMIN_NUMBERS]:
         is_paid_user = True
-    elif 'df_farmers' in locals() and df_farmers is not None and not df_farmers.empty:
+    elif not is_paid_user and 'df_farmers' in locals() and df_farmers is not None and not df_farmers.empty:
         matched_user = df_farmers[df_farmers['Phone'].astype(str).str.contains(formatted_login[-10:])]
         if not matched_user.empty:
             p_status = str(matched_user.iloc[0].get('Payment_Status', 'UNPAID')).strip().upper()
             user_expiry = str(matched_user.iloc[0].get('Subscription_Expiry', '2026-10-02')).strip()
             date_is_valid = is_subscription_active(user_expiry)
             is_paid_user = (p_status == "PAID") and date_is_valid
-        else:
-            is_paid_user = False
 
     if is_paid_user:
         st.success("🟢 Account Status: Active Subscriber / Akaunti Re Wa Ni Alafia")
