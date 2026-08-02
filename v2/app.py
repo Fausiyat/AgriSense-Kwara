@@ -132,15 +132,17 @@ def format_nigerian_phone(raw_phone):
     else:
         return "234" + phone_clean
 
-# Helper: Monthly Subscription Expiry Checker
+# Helper: Monthly Subscription Expiry Checker (Supports Excel Timestamps)
 def is_subscription_active(expiry_date_str):
     try:
-        expiry_date = datetime.datetime.strptime(str(expiry_date_str).strip(), "%Y-%m-%d").date()
+        # Extract just the YYYY-MM-DD part if a full timestamp is passed
+        clean_date_str = str(expiry_date_str).strip().split(" ")[0]
+        expiry_date = datetime.datetime.strptime(clean_date_str, "%Y-%m-%d").date()
         today = datetime.date.today()
         return today <= expiry_date
     except Exception:
         return False
-
+        
 # Helper: Growing Degree Days (GDD)
 def calculate_gdd(temp):
     base_temp, cap_temp = 10.0, 30.0
