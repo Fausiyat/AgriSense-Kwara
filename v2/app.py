@@ -135,14 +135,13 @@ def format_nigerian_phone(raw_phone):
 # Helper: Monthly Subscription Expiry Checker (Supports Excel Timestamps)
 def is_subscription_active(expiry_date_str):
     try:
-        # Extract just the YYYY-MM-DD part if a full timestamp is passed
         clean_date_str = str(expiry_date_str).strip().split(" ")[0]
         expiry_date = datetime.datetime.strptime(clean_date_str, "%Y-%m-%d").date()
         today = datetime.date.today()
         return today <= expiry_date
     except Exception:
         return False
-        
+
 # Helper: Growing Degree Days (GDD)
 def calculate_gdd(temp):
     base_temp, cap_temp = 10.0, 30.0
@@ -153,10 +152,7 @@ def calculate_gdd(temp):
 def calculate_pump_hours(water_depth_mm, land_size=1.0, unit="Hectares"):
     if water_depth_mm <= 0 or land_size <= 0:
         return 0.0
-    
-    # Convert Acres to Hectares if needed
     land_size_ha = land_size * 0.404686 if str(unit).lower() == "acres" else land_size
-    
     total_liters = water_depth_mm * 10000 * land_size_ha
     pump_capacity_lh = 25000  # Standard 2-inch petrol pump (~25,000 L/hr)
     return round(total_liters / pump_capacity_lh, 1)
@@ -166,10 +162,8 @@ def verify_paystack_transaction(reference_code):
     paystack_secret = st.secrets.get("PAYSTACK_SECRET_KEY", "")
     if not paystack_secret or not reference_code:
         return False, None
-        
     headers = {"Authorization": f"Bearer {paystack_secret}"}
     url = f"https://api.paystack.co/transaction/verify/{reference_code}"
-    
     try:
         res = requests.get(url, headers=headers, timeout=10)
         if res.status_code == 200:
@@ -180,6 +174,49 @@ def verify_paystack_transaction(reference_code):
     except Exception as e:
         st.error(f"Payment verification error: {e}")
     return False, None
+
+# Smart Stage-Based SMS Builder (Phase-Focused & Concise)
+def build_smart_sms(farmer_name, lga, dap, prob_safe, crop_res, lang="English"):
+    # PHASE 1: PLANTING PHASE (DAP == 0)
+    if dap == 0:
+        if lang == "Yoruba":
+            status = "O DARA LATI GBIN" if prob_safe >= 80 else "E MURA DA GBIGBIN DURO"
+            return f"AgriSense({lga}): Bawo {farmer_name}, Akoko Gbigbin: {status} ({prob_safe:.0f}% daju)."[:160]
+        else:
+            status = "SAFE TO PLANT" if prob_safe >= 80 else "DO NOT PLANT"
+            return f"AgriSense({lga}): Hi {farmer_name}, Planting Status: {status} ({prob_safe:.0f}% confidence)."[:160]
+
+    # PHASE 2: GROWING PHASE (DAP > 0): Send ONLY the priority actionable task today
+    status_key = crop_res.get("status", "MOISTURE_SAFE")
+    yo_irrig = ADVISORY_TRANSLATIONS.get(status_key, ADVISORY_TRANSLATIONS["MOISTURE_SAFE"])
+    
+    fert_active = "No scheduled" not in crop_res["fert_en"] and "Ko si takete" not in crop_res["fert_yo"]
+    irrig_urgent = status_key in ["EMERGENCY_IRRIGATE", "IRRIGATE_NOW", "WAIT_FOR_RAIN"]
+
+    # Priority A: Urgent Irrigation Warning
+    if irrig_urgent:
+        if lang == "Yoruba":
+            action = yo_irrig['action_yo']
+            return f"AgriSense({lga}): Bawo {farmer_name} (Ojo {dap}), {action}. Wo oko re ti o ba fe won omi."[:160]
+        else:
+            action = crop_res['action']
+            return f"AgriSense({lga}): Hi {farmer_name} (Day {dap}), {action}. Check field status."[:160]
+
+    # Priority B: Active Fertilizer Window
+    elif fert_active:
+        if lang == "Yoruba":
+            msg_fert = crop_res['fert_yo']
+            return f"AgriSense({lga}): Bawo {farmer_name} (Ojo {dap}), {msg_fert}"[:160]
+        else:
+            msg_fert = crop_res['fert_en']
+            return f"AgriSense({lga}): Hi {farmer_name} (Day {dap}), {msg_fert}"[:160]
+
+    # Priority C: Routine Status Check-in (All Good)
+    else:
+        if lang == "Yoruba":
+            return f"AgriSense({lga}): Bawo {farmer_name} (Ojo {dap}), Oko re wa ni alafia. Omi atiwon takete ko gbodogbo loni."[:160]
+        else:
+            return f"AgriSense({lga}): Hi {farmer_name} (Day {dap}), Crop status optimal. No irrigation or fertilizer needed today."[:160]
 
 # Upgraded Combined Irrigation & Fertilizer Advisory Engine
 def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_type="Loam/Clay", land_size=1.0, land_unit="Hectares"):
@@ -373,13 +410,11 @@ with tab1:
     # 🔑 FARMER ACCOUNT PORTAL (WITH SESSION STATE PERSISTENCE)
     st.markdown("### 🔑 Farmer Account Portal / Ipade Wo Tesiwaju")
 
-    # Initialize Session State Variables
     if "is_paid_user" not in st.session_state:
         st.session_state.is_paid_user = False
     if "user_phone" not in st.session_state:
         st.session_state.user_phone = ""
 
-    # Check for Paystack URL Redirect Reference
     query_params = st.query_params
     if "reference" in query_params:
         pay_ref = query_params["reference"]
@@ -392,7 +427,6 @@ with tab1:
                 st.session_state.user_phone = str(paid_phone)
             st.query_params.clear()
 
-    # Input Box for Farmer Login
     user_input_phone = st.text_input(
         "Enter Phone Number / Tẹ Nọmba Fonu Re:", 
         value=st.session_state.user_phone, 
@@ -403,7 +437,6 @@ with tab1:
     formatted_login = format_nigerian_phone(user_input_phone)
     ALLOWED_ADMIN_NUMBERS = ["08143086509", "2348143086509"]
 
-    # Access Gate Verification Checks
     if formatted_login in ALLOWED_ADMIN_NUMBERS or formatted_login[-10:] in [p[-10:] for p in ALLOWED_ADMIN_NUMBERS]:
         st.session_state.is_paid_user = True
     elif user_input_phone != "" and 'df_farmers' in locals() and df_farmers is not None and not df_farmers.empty:
@@ -565,16 +598,8 @@ with tab1:
 
         st.markdown(f"### {txt['sms_header']}")
 
-        if lang == "Yoruba":
-            default_single_msg = (
-                f"AgriSense({selected_lga}): Gbigbin: {planting_advisory} ({prob_safe:.0f}%). "
-                f"Omi: {action_text}. Takete: {fert_text[:40]}..."
-            )[:160]
-        else:
-            default_single_msg = (
-                f"AgriSense({selected_lga}): Plant: {planting_advisory} ({prob_safe:.0f}%). "
-                f"Irrig: {action_text}. Fert: {crop_res['fert_en'][:40]}..."
-            )[:160]
+        # Build Clean Phase-Based Single Test Message
+        default_single_msg = build_smart_sms("Farmer", selected_lga, dap, prob_safe, crop_res, lang=lang)
         
         single_msg = st.text_area(txt["sms_content"], default_single_msg, height=100)
         
@@ -657,8 +682,6 @@ with tab2:
                             ]], columns=['rainfall_mm', 'temp_celsius', 'gdd', 'rain_7day_sum', 'consecutive_dry_days', 'forecast_3day_rain', 'day_of_year'])
 
                             prob_safe = model.predict_proba(X_live)[0][1] * 100
-                            planting_status_en = "SAFE TO PLANT" if prob_safe >= 80 else "DO NOT PLANT"
-                            planting_status_yo = "O DARA LATI GBIN" if prob_safe >= 80 else "E MURA DA GBIGBIN DURO"
 
                             for idx, row in group.iterrows():
                                 farmer_name = str(row.get('Name', 'Farmer')).strip()
@@ -686,24 +709,14 @@ with tab2:
                                     land_size=farmer_land,
                                     land_unit=farmer_unit
                                 )
-                                status_key = crop_res.get("status", "MOISTURE_SAFE")
-                                yo_irrig = ADVISORY_TRANSLATIONS.get(status_key, ADVISORY_TRANSLATIONS["MOISTURE_SAFE"])
 
                                 active_account = (p_status == "PAID") and is_subscription_active(user_expiry)
 
+                                # Generate clean, phase-focused message body
                                 if active_account:
-                                    if farmer_lang == "Yoruba":
-                                        personalized_msg = (
-                                            f"AgriSense({clean_lga}): Bawo {farmer_name}, "
-                                            f"Gbigbin: {planting_status_yo} ({prob_safe:.0f}%). "
-                                            f"Omi: {yo_irrig['action_yo']}. Takete: {crop_res['fert_yo'][:30]}..."
-                                        )[:160]
-                                    else:
-                                        personalized_msg = (
-                                            f"AgriSense({clean_lga}): Hi {farmer_name}, "
-                                            f"Plant: {planting_status_en} ({prob_safe:.0f}%). "
-                                            f"Irrig: {crop_res['action']}. Fert: {crop_res['fert_en'][:30]}..."
-                                        )[:160]
+                                    personalized_msg = build_smart_sms(
+                                        farmer_name, clean_lga, dap, prob_safe, crop_res, lang=farmer_lang
+                                    )
                                 else:
                                     if farmer_lang == "Yoruba":
                                         personalized_msg = (
