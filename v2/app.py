@@ -229,6 +229,7 @@ def build_smart_sms(farmer_name, lga, dap, prob_safe, crop_res, lang="English"):
             return f"AgriSense({lga}): Bawo {farmer_name} (Ojo {dap}), Oko re wa ni alafia. Omi atiwon takete ko gbodogbo loni."[:160]
         else:
             return f"AgriSense({lga}): Hi {farmer_name} (Day {dap}), Crop status optimal. No irrigation or fertilizer needed today."[:160]
+
 # Upgraded Combined Irrigation & Fertilizer Advisory Engine
 def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_type="Loam/Clay", land_size=1.0, land_unit="Hectares"):
     dry_limit_factor = 0.6 if str(soil_type).lower() == "sandy" else 1.0
@@ -566,7 +567,16 @@ with tab1:
             elif advisory_choice == "🧪 Fertilizer & Input Protection":
                 st.markdown("### 🧪 Fertilizer Timing & Crop Protection")
                 st.info(f"**{txt['growth_stage']}:** {crop_res['stage']}\n\n**Advisory / Imoran:** {fert_text}")
-                st.caption("💡 *Input Safety Tip: Applying fertilizer before heavy downpours washes nutrients away and wastes money.*")
+                
+                # Dynamic Contextual Input Tips based on active fertilizer status
+                if "HOLD OFF" in fert_text or "DURO FUN" in fert_text:
+                    st.caption("💡 *Input Safety Tip: Heavy rain forecast detected. Waiting for downpours to pass prevents nutrient runoff and saves input costs.*")
+                elif "BASAL" in fert_text or "AKOKO TAKETE" in fert_text:
+                    st.caption("💡 *Input Safety Tip: Apply NPK 15-15-15 in a ring or pocket 5cm away from the stem near root zone to prevent seedling burn.*")
+                elif "UREA" in fert_text:
+                    st.caption("💡 *Input Safety Tip: Cover Urea lightly with soil right after application to stop nitrogen from escaping into the air on hot days.*")
+                else:
+                    st.caption("💡 *Input Safety Tip: Applying fertilizer before heavy downpours washes nutrients away and wastes money.*")
 
         else:
             st.warning("🔒 **PREMIUM ADVISORIES LOCKED / IMORAN AKANSE TITI**")
