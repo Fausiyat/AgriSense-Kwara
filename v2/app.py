@@ -527,7 +527,7 @@ with tab1:
                 st.markdown("#### 💳 Option 1: Pay Online")
                 st.link_button(
                     "Pay ₦1,000 via Paystack", 
-                    "https://paystack.shop/pay/v79dlp01cw",
+                    "https://paystack.shop/pay/cl6o6aipdr",
                     use_container_width=True
                 )
             
