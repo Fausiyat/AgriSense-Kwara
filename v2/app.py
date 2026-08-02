@@ -367,42 +367,53 @@ with tab1:
         st.error(f"⚠️ Model file `agrisense_kwara_model_v2.pkl` not found in directory: `{BASE_DIR}`.")
 
     st.markdown("---")
+ # 🔑 FARMER ACCOUNT PORTAL (WITH SESSION STATE ACTIVATION)
     st.markdown("### 🔑 Farmer Account Portal / Ipade Wo Tesiwaju")
 
-    # Handle Paystack Redirect URL verification
-    is_paid_user = False
-    user_input_phone = ""
-    
+    # Initialize Session State Variables if not present
+    if "is_paid_user" not in st.session_state:
+        st.session_state.is_paid_user = False
+    if "user_phone" not in st.session_state:
+        st.session_state.user_phone = ""
+
+    # Check for Paystack URL Redirect Reference
     query_params = st.query_params
     if "reference" in query_params:
         pay_ref = query_params["reference"]
         is_valid_pay, paid_phone = verify_paystack_transaction(pay_ref)
         if is_valid_pay:
             st.balloons()
-            st.success("🎉 Payment Confirmed! Welcome to AgriSense Premium.")
-            is_paid_user = True
+            st.success("🎉 Payment Verified! Welcome to AgriSense Premium.")
+            st.session_state.is_paid_user = True
             if paid_phone:
-                user_input_phone = str(paid_phone)
+                st.session_state.user_phone = str(paid_phone)
+            # Clear reference parameter to keep URL clean
+            st.query_params.clear()
 
+    # Input Box for Farmer Login
     user_input_phone = st.text_input(
         "Enter Phone Number / Tẹ Nọmba Fonu Re:", 
-        value=user_input_phone, 
+        value=st.session_state.user_phone, 
         placeholder="e.g. 08012345678", 
         key="user_login_phone"
     )
     
     formatted_login = format_nigerian_phone(user_input_phone)
-    ALLOWED_ADMIN_NUMBERS = ["08030630788", "2348030630788"]
+    ALLOWED_ADMIN_NUMBERS = ["08143086509", "2348143086509"]
 
+    # Access Gate Checks
     if formatted_login in ALLOWED_ADMIN_NUMBERS or formatted_login[-10:] in [p[-10:] for p in ALLOWED_ADMIN_NUMBERS]:
-        is_paid_user = True
-    elif not is_paid_user and 'df_farmers' in locals() and df_farmers is not None and not df_farmers.empty:
+        st.session_state.is_paid_user = True
+    elif user_input_phone != "" and 'df_farmers' in locals() and df_farmers is not None and not df_farmers.empty:
         matched_user = df_farmers[df_farmers['Phone'].astype(str).str.contains(formatted_login[-10:])]
         if not matched_user.empty:
             p_status = str(matched_user.iloc[0].get('Payment_Status', 'UNPAID')).strip().upper()
             user_expiry = str(matched_user.iloc[0].get('Subscription_Expiry', '2026-10-02')).strip()
             date_is_valid = is_subscription_active(user_expiry)
-            is_paid_user = (p_status == "PAID") and date_is_valid
+            if (p_status == "PAID") and date_is_valid:
+                st.session_state.is_paid_user = True
+
+    is_paid_user = st.session_state.is_paid_user
 
     if is_paid_user:
         st.success("🟢 Account Status: Active Subscriber / Akaunti Re Wa Ni Alafia")
