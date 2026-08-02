@@ -183,7 +183,7 @@ def verify_paystack_transaction(reference_code):
 def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_type="Loam/Clay", land_size=1.0, land_unit="Hectares"):
     dry_limit_factor = 0.6 if str(soil_type).lower() == "sandy" else 1.0
 
-    # Determine Crop Stage & Daily Water Needs
+    # 1. Determine Crop Stage & Daily Water Needs FIRST
     if 0 <= dap <= 15:
         stage, max_dry, daily_need = "Establishment / Early Growth (Days 0-15)", max(1, int(2 * dry_limit_factor)), 1.2
     elif 16 <= dap <= 45:
@@ -202,16 +202,14 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
             "fert_yo": "Ko si fe fun takete ni ipele yi (Egbin ti gbo)."
         }
 
-    # Calculate pumping hours for required 3-day water application depth
+    # 2. Calculate Derived Values safely after max_dry & daily_need are set
     needed_mm = daily_need * 3
     hrs = calculate_pump_hours(needed_mm, land_size=land_size, unit=land_unit)
-
-    # Calculate exact next watering date based on growth stage interval
     today = datetime.date.today()
     next_watering_date = today + datetime.timedelta(days=max_dry)
     formatted_next_date = next_watering_date.strftime("%b %d, %Y")
 
-    # Evaluate Moisture & Irrigation Status
+    # 3. Evaluate Moisture & Irrigation Status
     if consecutive_dry_days >= max_dry:
         if forecast_3day_rain >= 15.0:
             status = "WAIT_FOR_RAIN"
@@ -231,7 +229,7 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
         action = "🟢 MOISTURE OPTIMAL"
         advisory = f"Moisture adequate for {stage}. No extra watering needed."
 
-    # Evaluate Fertilizer Timings & Yoruba Translations
+    # 4. Evaluate Fertilizer Timings & Yoruba Translations
     if 7 <= dap <= 14:
         if forecast_3day_rain >= 15.0:
             fert_en = "⚠️ HOLD OFF NPK: Heavy rain forecast. Fertilizer will wash away!"
