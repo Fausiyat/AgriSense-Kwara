@@ -392,7 +392,7 @@ with tab1:
     )
     
     formatted_login = format_nigerian_phone(user_input_phone)
-    ALLOWED_ADMIN_NUMBERS = ["08143086509", "2348143086509"]
+    ALLOWED_ADMIN_NUMBERS = ["08030630788", "2348030630788"]
 
     if formatted_login in ALLOWED_ADMIN_NUMBERS or formatted_login[-10:] in [p[-10:] for p in ALLOWED_ADMIN_NUMBERS]:
         is_paid_user = True
