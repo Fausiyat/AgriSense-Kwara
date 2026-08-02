@@ -45,10 +45,6 @@ LGA_COORDINATES = {
     "Ifelodun": {"lat": 8.3167, "lon": 4.7167}
 }
 
-# ==========================================
-# TRANSLATION DICTIONARIES (English & Yoruba)
-# ==========================================
-
 # UI Translations for Dashboard Elements
 UI_TEXT = {
     "English": {
@@ -138,28 +134,32 @@ def format_nigerian_phone(raw_phone):
 
 # Helper: Monthly Subscription Expiry Checker
 def is_subscription_active(expiry_date_str):
-    """
-    Checks if a farmer's monthly/seasonal subscription date is still valid.
-    Expects date string in 'YYYY-MM-DD' format.
-    """
     try:
         expiry_date = datetime.datetime.strptime(str(expiry_date_str).strip(), "%Y-%m-%d").date()
         today = datetime.date.today()
         return today <= expiry_date
     except Exception:
         return False
-        
+
 # Helper: Growing Degree Days (GDD)
 def calculate_gdd(temp):
     base_temp, cap_temp = 10.0, 30.0
     effective_temp = min(max(temp, base_temp), cap_temp)
     return max(0, effective_temp - base_temp)
 
+# Helper: Convert Required Water Depth (mm) & Land Area to Generator Pumping Hours
+def calculate_pump_hours(water_depth_mm, land_size_ha=1.0):
+    if water_depth_mm <= 0:
+        return 0.0
+    total_liters = water_depth_mm * 10000 * land_size_ha
+    pump_capacity_lh = 25000  # Standard 2-inch petrol pump flow rate in Kwara (~25,000 L/hr)
+    return round(total_liters / pump_capacity_lh, 1)
+
 # Upgraded Combined Irrigation & Fertilizer Advisory Engine
-def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_type="Loam/Clay"):
+def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_type="Loam/Clay", land_size_ha=1.0):
     dry_limit_factor = 0.6 if str(soil_type).lower() == "sandy" else 1.0
 
-    # Determine Crop Stage & Water Needs
+    # Determine Crop Stage & Daily Water Needs
     if 0 <= dap <= 15:
         stage, max_dry, daily_need = "Establishment / Early Growth (Days 0-15)", max(1, int(2 * dry_limit_factor)), 1.2
     elif 16 <= dap <= 45:
@@ -178,6 +178,10 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
             "fert_yo": "Ko si fe fun takete ni ipele yi (Egbin ti gbo)."
         }
 
+    # Calculate pumping hours for required 3-day water application depth
+    needed_mm = daily_need * 3
+    hrs = calculate_pump_hours(needed_mm, land_size_ha=land_size_ha)
+
     # Evaluate Moisture & Irrigation Status
     if consecutive_dry_days >= max_dry:
         if forecast_3day_rain >= 15.0:
@@ -187,18 +191,18 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
         else:
             if "Flowering" in stage:
                 status = "EMERGENCY_IRRIGATE"
-                action = "🚨 CRITICAL: IRRIGATE NOW"
-                advisory = f"CRITICAL! {consecutive_dry_days} dry days. Delay risks 35-100% pollination failure!"
+                action = f"🚨 CRITICAL: IRRIGATE NOW (~{hrs} hrs pump)"
+                advisory = f"CRITICAL! {consecutive_dry_days} dry days in Flowering stage. Apply ~{needed_mm:.1f}mm (~{hrs} hrs 2-inch pump) to prevent pollination failure!"
             else:
                 status = "IRRIGATE_NOW"
-                action = "🔵 IRRIGATE NOW"
-                advisory = f"Dry limit reached. Apply ~{daily_need * 3:.1f}mm water."
+                action = f"🔵 IRRIGATE NOW (~{hrs} hrs pump)"
+                advisory = f"Dry limit reached. Apply ~{needed_mm:.1f}mm water (run 2-inch pump for ~{hrs} hours)."
     else:
         status = "MOISTURE_SAFE"
         action = "🟢 MOISTURE OPTIMAL"
         advisory = f"Moisture adequate for {stage}. No extra watering needed."
 
-    # Evaluate Fertilizer Timings & Yoruba Translations (Maize Specific)
+    # Evaluate Fertilizer Timings & Yoruba Translations
     if 7 <= dap <= 14:
         if forecast_3day_rain >= 15.0:
             fert_en = "⚠️ HOLD OFF NPK: Heavy rain forecast. Fertilizer will wash away!"
@@ -233,7 +237,8 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
         "action": action,
         "advisory": advisory,
         "fert_en": fert_en,
-        "fert_yo": fert_yo
+        "fert_yo": fert_yo,
+        "pump_hrs": hrs
     }
 
 # Fetch Live Weather from Open-Meteo REST API
@@ -260,7 +265,6 @@ def fetch_live_weather(lat, lon):
 
     try:
         response = requests.get(url, timeout=10)
-        
         if response.status_code == 200:
             data = response.json()
             daily = data.get('daily', {})
@@ -340,7 +344,7 @@ with tab1:
     user_input_phone = st.text_input(
         "Enter Phone Number / Tẹ Nọmba Fonu Re:", 
         value="", 
-        placeholder="e.g. 08112345678", 
+        placeholder="e.g. 08012345678", 
         key="user_login_phone"
     )
     
@@ -368,13 +372,15 @@ with tab1:
         st.info("💡 Pay seasonal/monthly subscription to unlock ML planting forecasts & irrigation alerts.")
     st.markdown("---")
 
-    col_sel1, col_sel2, col_sel3 = st.columns(3)
+    col_sel1, col_sel2, col_sel3, col_sel4 = st.columns(4)
     with col_sel1:
         selected_lga = st.selectbox(txt["lga_label"], list(LGA_COORDINATES.keys()), key="single_lga")
     with col_sel2:
         planting_date = st.date_input(txt["pdate_label"], datetime.date.today(), key="single_pdate")
     with col_sel3:
         soil_type = st.selectbox(txt["soil_label"], ["Loam/Clay", "Sandy"], key="single_soil")
+    with col_sel4:
+        land_size_ha = st.number_input("Farm Size (Hectares):", min_value=0.1, max_value=50.0, value=1.0, step=0.1, key="single_land")
 
     today_date = datetime.date.today()
     dap = max(0, (today_date - planting_date).days)
@@ -392,7 +398,7 @@ with tab1:
         c4.metric(txt["dry_streak"], f"{live_data['consecutive_dry_days']} Days")
         c5.metric(txt["avg_temp"], f"{live_data['temp_avg']} °C")
 
-        crop_res = calculate_crop_advisory(dap, live_data['consecutive_dry_days'], live_data['forecast_3day_rain'], soil_type)
+        crop_res = calculate_crop_advisory(dap, live_data['consecutive_dry_days'], live_data['forecast_3day_rain'], soil_type, land_size_ha=land_size_ha)
         status_key = crop_res.get("status", "MOISTURE_SAFE")
         yo_irrig = ADVISORY_TRANSLATIONS.get(status_key, ADVISORY_TRANSLATIONS["MOISTURE_SAFE"])
 
@@ -450,7 +456,7 @@ with tab1:
             elif advisory_choice == "💧 Irrigation & Water Plan":
                 st.markdown("### 💧 Dry-Season & Irrigation Advisory")
                 st.info(f"**{txt['growth_stage']}:** {crop_res['stage']} | **{txt['irrig_status']}:** {action_text}\n\n{advisory_text}")
-                st.caption("💡 *Dry Season Tip: Skipping unnecessary pumping days saves ~₦3,500–₦5,000 in pump fuel per hectare.*")
+                st.caption(f"💡 *Dry Season Tip: Pumping required for {land_size_ha}ha field = ~{crop_res['pump_hrs']} hrs of 2-inch petrol pump.*")
 
             elif advisory_choice == "🧪 Fertilizer & Input Protection":
                 st.markdown("### 🧪 Fertilizer Timing & Crop Protection")
@@ -461,13 +467,28 @@ with tab1:
             st.warning("🔒 **PREMIUM ADVISORIES LOCKED / IMORAN AKANSE TITI**")
             st.markdown(
                 """
-                > **Upgrade to AgriSense Premium (₦1000 / Month):**
+                > **Upgrade to AgriSense Premium (₦1,000 / Month):**
                 > * 🌾 Unlock Machine Learning Planting Decision Scores.
                 > * 💧 Get Exact Daily Pumping/Watering Schedules (Saves fuel in Dry Season).
                 > * 🧪 Prevent Fertilizer Leaching & Seed Loss.
                 """
             )
-            st.button("💳 Pay ₦1000 to Unlock Instantly", key="pay_btn_tab1")
+            
+            pay_col1, pay_col2 = st.columns(2)
+            with pay_col1:
+                st.markdown("#### 💳 Option 1: Pay Online")
+                st.link_button(
+                    "Pay ₦1,000 via Paystack", 
+                    "https://paystack.shop/pay/v79dlp01cw",
+                    use_container_width=True
+                )
+            
+            with pay_col2:
+                st.markdown("#### 💵 Option 2: Pay Field Coordinator")
+                st.info(
+                    "Pay cash directly to your local **AgriSense Coordinator / Cooperative Leader** in your LGA.\n\n"
+                    "📞 **Support / Activation Hotlines:** `08143086509`"
+                )
 
         st.markdown("---")
 
@@ -532,7 +553,7 @@ with tab2:
         st.markdown("### 📋 Upload Recipient Roster (50 Farmers Target)")
         st.info(
             "💡 **Batch Roster Columns Required:** `Name`, `Phone`, `LGA`, `Planting_Date`, `Soil_Type`.\n\n"
-            "Optional Columns: `Language` (`Yoruba`/`English`), `Payment_Status` (`PAID`/`UNPAID`), `Subscription_Expiry` (`YYYY-MM-DD`)."
+            "Optional Columns: `Language` (`Yoruba`/`English`), `Payment_Status` (`PAID`/`UNPAID`), `Subscription_Expiry` (`YYYY-MM-DD`), `Land_Size_Ha` (default: 1.0)."
         )
         
         uploaded_file = st.file_uploader("Upload Farmers File (.xlsx or .csv)", type=["xlsx", "csv"], key="admin_file_uploader")
@@ -578,7 +599,6 @@ with tab2:
                             planting_status_en = "SAFE TO PLANT" if prob_safe >= 80 else "DO NOT PLANT"
                             planting_status_yo = "O DARA LATI GBIN" if prob_safe >= 80 else "E MURA DA GBIGBIN DURO"
 
-                            # Send individualized SMS per farmer to preserve personalized name/details
                             for idx, row in group.iterrows():
                                 farmer_name = str(row.get('Name', 'Farmer')).strip()
                                 raw_phone = str(row.get('Phone', '')).strip()
@@ -586,6 +606,7 @@ with tab2:
                                 farmer_lang = str(row.get('Language', 'Yoruba')).strip().title()
                                 p_status = str(row.get('Payment_Status', 'PAID')).strip().upper()
                                 user_expiry = str(row.get('Subscription_Expiry', '2026-10-02')).strip()
+                                farmer_land_ha = float(row.get('Land_Size_Ha', 1.0))
 
                                 formatted_phone = format_nigerian_phone(raw_phone)
 
@@ -595,7 +616,7 @@ with tab2:
                                 except Exception:
                                     dap = 0
 
-                                crop_res = calculate_crop_advisory(dap, weather['consecutive_dry_days'], weather['forecast_3day_rain'], soil)
+                                crop_res = calculate_crop_advisory(dap, weather['consecutive_dry_days'], weather['forecast_3day_rain'], soil, land_size_ha=farmer_land_ha)
                                 status_key = crop_res.get("status", "MOISTURE_SAFE")
                                 yo_irrig = ADVISORY_TRANSLATIONS.get(status_key, ADVISORY_TRANSLATIONS["MOISTURE_SAFE"])
 
@@ -650,6 +671,7 @@ with tab2:
                                     "Language": farmer_lang,
                                     "Payment Status": p_status,
                                     "Subscription Expiry": user_expiry,
+                                    "Land Size (Ha)": farmer_land_ha,
                                     "Account Status": "ACTIVE" if active_account else "EXPIRED",
                                     "Crop Age (DAP)": dap,
                                     "Message Body": personalized_msg,
