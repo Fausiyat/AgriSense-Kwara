@@ -98,27 +98,27 @@ ADVISORY_TRANSLATIONS = {
     "STOP_IRRIGATION": {
         "action_yo": "🟢 DA OMI DURO",
         "advisory_yo": "Egbin ti gbo. Da omi duro lati gbe oko ki o to kore.",
-        "fert_yo": "Ko si fe fun takete ni ipele yi (Egbin ti gbo)."
+        "fert_yo": "Ko si aye fun ajile ni ipele yi (Egbin ti gbo)."
     },
     "WAIT_FOR_RAIN": {
-        "action_yo": "🟡 DI MURA FUN OJO",
-        "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati méjíléláàdọ́rin. Fi omi pamora.",
-        "fert_yo": "⚠️ DI MURA FUN TAKETE: Ojo nla nbo ni wakati méjíléláàdọ́rin. Takete re le ba je lo ti o ba fi si loni!"
+        "action_yo": "🟡 DURO FUN OJO",
+        "advisory_yo": "Erupe gbe, sugbon ojo nbo ni akoko wakati méjíléláàdọ́rin. Fi omi pamo.",
+        "fert_yo": "⚠️ DURO FUN AJILE: Ojo nla nbo ni wakati méjíléláàdọ́rin. Ajile re le ba je ti o ba fi si loni!"
     },
     "EMERGENCY_IRRIGATE": {
         "action_yo": "🚨 EWU: WON OMI KIAKIA!",
         "advisory_yo": "EWU NLA! Erupe gbe. Ti o ba pe lati won omi, egbin le ba je!",
-        "fert_yo": "⚠️ ERUPE GBE JU: Won omi si oko ki o to fi takete/Urea si lati ma ba egbin je."
+        "fert_yo": "⚠️ ERUPE GBE JU: Won omi si oko ki o to fi Ajile/Urea si lati ma ba egbin je."
     },
     "IRRIGATE_NOW": {
         "action_yo": "🔵 WON OMI NISIN",
         "advisory_yo": "Nkan gbigbe ti po ju. Won omi daadaa fun oko re.",
-        "fert_yo": "Erupe gbe die. Won omi die ki o to fi takete si."
+        "fert_yo": "Erupe gbe die. Won omi die ki o to fi ajile si."
     },
     "MOISTURE_SAFE": {
         "action_yo": "🟢 OMI WA DAADAA",
         "advisory_yo": "Omi ti to fun ipele idagbasoke egbin re. Ko gbudo won omi sii.",
-        "fert_yo": "🟢 AKEJU OMI DA: Aaye wa lati fi takete si egbe egbin re ti o ba koo si asiko."
+        "fert_yo": "🟢 AKEJU OMI DA: Aaye wa lati fi ajile si egbe egbin re ti o ba koo si asiko."
     }
 }
 
@@ -189,7 +189,7 @@ def build_smart_sms(farmer_name, lga, dap, prob_safe, crop_res, lang="English"):
     status_key = crop_res.get("status", "MOISTURE_SAFE")
     yo_irrig = ADVISORY_TRANSLATIONS.get(status_key, ADVISORY_TRANSLATIONS["MOISTURE_SAFE"])
     
-    fert_active = "No scheduled" not in crop_res["fert_en"] and "Ko si takete" not in crop_res["fert_yo"]
+    fert_active = "No scheduled" not in crop_res["fert_en"] and "Ko si ajile" not in crop_res["fert_yo"]
     irrig_urgent = status_key in ["EMERGENCY_IRRIGATE", "IRRIGATE_NOW", "WAIT_FOR_RAIN"]
 
     # SCENARIO 1: BOTH IRRIGATION AND FERTILIZER ARE NEEDED TODAY
@@ -197,7 +197,7 @@ def build_smart_sms(farmer_name, lga, dap, prob_safe, crop_res, lang="English"):
         if lang == "Yoruba":
             return (
                 f"AgriSense({lga}): Bawo {farmer_name} (Ojo {dap}), ⚠️ ERUPE GBE! "
-                f"Won omi si oko ti o ba fi takete/Urea si loni lati ma ba egbin je."
+                f"Won omi si oko ti o ba fi Ajile/Urea si loni lati ma ba egbin je."
             )[:160]
         else:
             return (
@@ -226,7 +226,7 @@ def build_smart_sms(farmer_name, lga, dap, prob_safe, crop_res, lang="English"):
     # SCENARIO 4: ROUTINE CHECK-IN (EVERYTHING OPTIMAL)
     else:
         if lang == "Yoruba":
-            return f"AgriSense({lga}): Bawo {farmer_name} (Ojo {dap}), Oko re wa ni alafia. Omi atiwon takete ko gbodogbo loni."[:160]
+            return f"AgriSense({lga}): Bawo {farmer_name} (Ojo {dap}), Oko re wa ni alafia. Omi ati ajile kò nílò loni."[:160]
         else:
             return f"AgriSense({lga}): Hi {farmer_name} (Day {dap}), Crop status optimal. No irrigation or fertilizer needed today."[:160]
 
@@ -250,7 +250,7 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
             "action": "🟢 STOP IRRIGATION",
             "advisory": "Crop mature. Stop watering for field drying before harvest.",
             "fert_en": "No fertilizer application required at maturation phase.",
-            "fert_yo": "Ko si fe fun takete ni ipele yi (Egbin ti gbo)."
+            "fert_yo": "Ko si fe fun ajile ni ipele yi (Egbin ti gbo)."
         }
 
     # 2. Calculate Derived Values safely after max_dry & daily_need are set
@@ -284,20 +284,20 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
     if 7 <= dap <= 14:
         if forecast_3day_rain >= 15.0:
             fert_en = "⚠️ HOLD OFF NPK: Heavy rain forecast. Fertilizer will wash away!"
-            fert_yo = "⚠️ DURO FUN NPK: Ojo nla nbo. Takete re le ba je lo ti o ba fi si loni!"
+            fert_yo = "⚠️ DURO FUN NPK: Ojo nla nbo. Ajile re le ba je lo ti o ba fi si loni!"
         else:
             fert_en = "🧪 BASAL FERTILIZER WINDOW: Apply NPK 15-15-15 (1 bag/ha) near root zone."
-            fert_yo = "🧪 AKOKO TAKETE NPK: Won NPK 15-15-15 si egbe egbin re ni eba ogbo."
+            fert_yo = "🧪 AKOKO AJILE NPK: Won NPK 15-15-15 si egbe egbin re ni eba egbò."
     elif 21 <= dap <= 30:
         if forecast_3day_rain >= 15.0:
             fert_en = "⚠️ HOLD OFF UREA: Heavy rain in 72h forecast. Fertilizer will wash away!"
-            fert_yo = "⚠️ DURO FUN UREA: Ojo nbo ni wakati méjíléláàdọ́rin. Fi takete Urea pamo bayii."
+            fert_yo = "⚠️ DURO FUN UREA: Ojo nbo ni wakati méjíléláàdọ́rin. Fi ajile Urea pamo bayii."
         elif consecutive_dry_days >= 4:
             fert_en = "⚠️ DRY SOIL: Pre-irrigate field before applying Urea to prevent root burn."
             fert_yo = "⚠️ ERUPE GBE: Won omi si oko ki o to fi Urea si lati ma ba egbin je."
         else:
             fert_en = "🧪 1ST TOP-DRESSING WINDOW: Apply Urea for fast vegetative growth."
-            fert_yo = "🧪 AKOKO UREA AKOKO: Won takete Urea fun idagbasoke egbin re."
+            fert_yo = "🧪 AKOKO UREA AKOKO: Won ajile Urea fun idagbasoke egbin re."
     elif 45 <= dap <= 55:
         if forecast_3day_rain >= 15.0:
             fert_en = "⚠️ HOLD OFF 2ND UREA: Rain expected in 72h. Hold off application."
@@ -699,8 +699,8 @@ with tab2:
                             # Construct Language-Specific Onboarding Text
                             if farmer_lang == "Yoruba":
                                 personalized_msg = (
-                                    f"AgriSense: E kabo {farmer_name}! A ti fi oruko re si eto wa fun osu meji ti o fe (FREE). "
-                                    f"Wao ma gba imoran oko lori SMS. Support: 08143086509."
+                                    f"AgriSense: E kabo {farmer_name}! A ti fi oruko re si eto wa fun osu meji ni o fe (FREE). "
+                                    f"E o ma gba imoran oko lori SMS. Support: 08143086509."
                                 )[:160]
                             else:
                                 personalized_msg = (
@@ -800,7 +800,7 @@ with tab2:
                                     else:
                                         if farmer_lang == "Yoruba":
                                             personalized_msg = (
-                                                f"AgriSense: Bawo {farmer_name}, akaunti re ti fe san owo. "
+                                                f"AgriSense: Bawo {farmer_name}, akaunti re ti to san owo. "
                                                 f"San N1000 lati tesiwaju gbigba imoran oko re."
                                             )[:160]
                                         else:
