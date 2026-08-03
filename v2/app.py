@@ -307,7 +307,7 @@ def calculate_crop_advisory(dap, consecutive_dry_days, forecast_3day_rain, soil_
             fert_yo = "🧪 AKOKO UREA ELEKEJI: Won Urea keji ki egbin to bere si ru ewe/ododo."
     else:
         fert_en = "🟢 No scheduled fertilizer application for this exact growth day."
-        fert_yo = "🟢 Ko si takete ti a sun si sile fun ojo idagbasoke egbin yi."
+        fert_yo = "🟢 Ko si ajile ti a sun si sile fun ojo idagbasoke egbin yi."
 
     return {
         "stage": stage,
